@@ -29,6 +29,12 @@ sources:
     # Documents missing any of these keys are refused at ingest rather than
     # indexed. For anything with revisions — datasheets, policies, contracts —
     # this is what stops the agent answering confidently from a superseded copy.
+    #
+    # Supply the values in a sidecar next to each document:
+    #     datasheets/pump-x40.pdf
+    #     datasheets/pump-x40.pdf.meta.json   →  {"effective_date": "2026-01-01",
+    #                                             "version": "3"}
+    # Anything refused is logged by name, so a shrinking corpus is never silent.
     require_metadata:
       - effective_date
       - version

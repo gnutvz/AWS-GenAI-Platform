@@ -25,7 +25,10 @@ deploy-obs: ## Deploy everything including self-hosted Langfuse (has a standing 
 destroy: ## Tear down. Documents bucket and knowledge base are RETAIN — delete by hand.
 	$(CDK) destroy --all
 
-ingest: ## Ingest documents: make ingest SRC=./docs
+ingest: ## Ingest a tenant's configured sources: make ingest TENANT=acme
+	$(PYTHON) -m services.ingest.ingest --tenant $(TENANT) --wait
+
+ingest-path: ## Ad-hoc ingest, no metadata gate: make ingest-path SRC=./docs
 	$(PYTHON) -m services.ingest.ingest $(SRC) --wait
 
 dataset: ## Download EnterpriseRAG-Bench corpus + questions (MIT, ~60MB)
