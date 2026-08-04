@@ -10,11 +10,13 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from typing import ClassVar
 
 import pytest
 
 from aiplat import config
 from aiplat.knowledge import _source_of
+from evals.datasets.fetch_enterprise_bench import to_cases
 from evals.run import _keyword_recall, _looks_like_refusal, load_dataset
 
 
@@ -116,3 +118,57 @@ class TestDataset:
             encoding="utf-8",
         )
         assert len(load_dataset(path)) == 1
+
+
+class TestBenchmarkConversion:
+    """EnterpriseRAG-Bench -> harness cases."""
+
+    ANSWERABLE: ClassVar[dict] = {
+        "question_id": "qst_0001",
+        "question_type": "basic",
+        "source_types": ["confluence"],
+        "question": "What is the limit?",
+        "expected_doc_ids": ["dsid_aaa"],
+        "gold_answer": "10 MiB.",
+        "answer_facts": ["The limit is 10 MiB."],
+    }
+    # Refusal questions ship with empty source_types AND empty expected_doc_ids.
+    UNANSWERABLE: ClassVar[dict] = {
+        "question_id": "qst_0500",
+        "question_type": "info_not_found",
+        "source_types": [],
+        "question": "Which accounts were on the allowlist?",
+        "expected_doc_ids": [],
+        "gold_answer": "Not answerable from available documents.",
+        "answer_facts": [],
+    }
+
+    def test_keeps_refusal_questions_despite_empty_sources(self):
+        """Regression: filtering refusals by source dropped all 20 of them."""
+        cases = to_cases([self.UNANSWERABLE], {"confluence"}, {"dsid_aaa"})
+        assert len(cases) == 1
+        assert cases[0]["expect_refusal"] is True
+        assert cases[0]["expect_facts"] == []
+
+    def test_keeps_answerable_question_when_evidence_present(self):
+        cases = to_cases([self.ANSWERABLE], {"confluence"}, {"dsid_aaa"})
+        assert len(cases) == 1
+        assert cases[0]["expect_refusal"] is False
+        assert cases[0]["expect_facts"] == ["The limit is 10 MiB."]
+
+    def test_drops_question_whose_evidence_was_not_downloaded(self):
+        """Scoring an agent on a document it could never retrieve is meaningless."""
+        assert to_cases([self.ANSWERABLE], {"confluence"}, {"dsid_other"}) == []
+
+    def test_output_matches_case_schema(self, tmp_path):
+        """Converted cases must load through the harness without adaptation."""
+        cases = to_cases([self.ANSWERABLE, self.UNANSWERABLE], {"confluence"}, {"dsid_aaa"})
+        path = tmp_path / "converted.jsonl"
+        path.write_text(
+            "\n".join(json.dumps(c) for c in cases) + "\n",
+            encoding="utf-8",
+        )
+        loaded = load_dataset(path)
+        assert len(loaded) == 2
+        assert loaded[0].needs_judge is True
+        assert loaded[1].expect_refusal is True

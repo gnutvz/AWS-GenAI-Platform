@@ -22,7 +22,13 @@ destroy: ## Tear down. Documents bucket and knowledge base are RETAIN — delete
 ingest: ## Ingest documents: make ingest SRC=./docs
 	$(PYTHON) -m services.ingest.ingest $(SRC) --wait
 
+dataset: ## Download EnterpriseRAG-Bench corpus + questions (MIT, ~60MB)
+	$(PYTHON) -m evals.datasets.fetch_enterprise_bench
+
 eval: ## Run the eval suite against the deployed agent
+	$(PYTHON) -m evals.run --dataset evals/datasets/enterprise-bench.jsonl
+
+eval-smoke: ## Quick harness check, no corpus needed
 	$(PYTHON) -m evals.run --dataset evals/datasets/smoke.jsonl --judge
 
 trace-local: ## Run Langfuse locally on :3000 for development

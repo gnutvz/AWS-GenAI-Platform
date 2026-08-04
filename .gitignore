@@ -11,3 +11,7 @@ infra/.cdk.staging/
 
 # Eval output is a build artifact; datasets are checked in, results are not.
 evals/results/
+
+# Downloaded benchmark corpus (~60MB). Reproduce with:
+#   python -m evals.datasets.fetch_enterprise_bench
+evals/corpus/

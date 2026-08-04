@@ -77,8 +77,34 @@ print(asyncio.run(ask('What is the warranty period?'))['answer'])
 Measure before you tune:
 
 ```bash
-python -m evals.run --dataset evals/datasets/smoke.jsonl --judge
+python -m evals.datasets.fetch_enterprise_bench    # 5,189 docs + 84 graded questions
+python -m services.ingest.ingest evals/corpus --wait
+python -m evals.run --dataset evals/datasets/enterprise-bench.jsonl
 ```
+
+## Evaluation
+
+The default dataset is [EnterpriseRAG-Bench](https://github.com/onyx-dot-app/EnterpriseRAG-Bench)
+(MIT, fully synthetic). It was chosen over FinanceBench and Vectara's Open RAG
+Benchmark for one reason: both of those are **CC-BY-NC**, and a non-commercial
+licence is a problem for a repo meant to be shown to customers.
+
+Three numbers, reported separately because they fail independently:
+
+| Metric | What it catches |
+|---|---|
+| **fact recall** | Did the answer state every expected fact? Judge-scored, so paraphrase counts |
+| **refusal accuracy** | Of the 20 unanswerable questions, how many got an honest "I don't know" |
+| **citation rate** | Did the answer carry `[n]` markers back to sources |
+
+Refusal accuracy is the one to watch. An agent that scores well on answerable
+questions while confidently inventing answers to unanswerable ones is worse than no
+agent at all, and a single blended pass rate hides exactly that.
+
+The fetch script downloads Confluence only (5k of 512k documents) to keep embedding
+costs sane. It says so loudly on every run: **scores here are not comparable to
+published benchmark results**, because retrieval over a small corpus is easier. Pass
+`--sources confluence github gmail` for a harder set.
 
 ## Turning things on
 
@@ -111,8 +137,11 @@ the only stack here with a standing bill, which is why it is opt-in.
 - **Guardrails bind to Bedrock, not to the gateway.** Setting `LLM_ROUTE=gateway`
   drops native guardrail enforcement — move it to the proxy or call ApplyGuardrail
   explicitly. This trade-off is the reason `bedrock` is the default route.
-- **The eval dataset is a placeholder.** Five smoke cases prove the harness runs.
-  Real numbers need questions from your own corpus, with the expected keywords filled
-  in — until then the pass rate means nothing.
+- **Benchmark scores are not portable.** The default corpus is a 5k-document subset,
+  which makes retrieval easier than the published benchmark. Use the numbers to
+  compare your own changes against each other, not against anyone else's results.
+- **The corpus is synthetic.** EnterpriseRAG-Bench models a fictional company. It has
+  realistic structure and noise, but it is not your documents — treat a good score as
+  "the pipeline works", not "this will work on our data".
 - **Langfuse here is v2** (Postgres only). v3 splits into web + worker and adds
   ClickHouse, Redis and S3.

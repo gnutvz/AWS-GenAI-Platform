@@ -43,6 +43,10 @@ class Judgement(BaseModel):
 
     faithful: bool = Field(description="Is every factual claim supported by the cited passages?")
     score: int = Field(ge=1, le=5, description="1 = wrong or unsupported, 5 = fully correct")
+    covered_facts: list[int] = Field(
+        default_factory=list,
+        description="1-based indices of the expected facts the answer states correctly",
+    )
     reason: str = Field(description="One sentence. What decided the score.")
 
 
@@ -50,9 +54,18 @@ class Judgement(BaseModel):
 class Case:
     id: str
     question: str
+    # Substring matching. Cheap and stable, but only works when the answer must
+    # contain a specific token.
     expect_keywords: list[str] = field(default_factory=list)
+    # Full sentences the answer must convey. Scored by the judge, since the same
+    # fact can be phrased a hundred ways. This is the better signal when available.
+    expect_facts: list[str] = field(default_factory=list)
     expect_refusal: bool = False
     notes: str = ""
+
+    @property
+    def needs_judge(self) -> bool:
+        return bool(self.expect_facts)
 
 
 @dataclass
@@ -64,6 +77,7 @@ class CaseResult:
     keyword_recall: float
     has_citation: bool
     refused: bool
+    fact_recall: float | None = None
     judge_score: int | None = None
     judge_reason: str = ""
     error: str = ""
@@ -98,23 +112,33 @@ def _keyword_recall(answer: str, keywords: list[str]) -> float:
     return hits / len(keywords)
 
 
-async def judge(question: str, answer: str) -> Judgement | None:
-    """Second opinion on faithfulness. Its own agent so it shares no state or tools."""
+async def judge(question: str, answer: str, expected_facts: list[str]) -> Judgement | None:
+    """Second opinion on faithfulness and fact coverage.
+
+    Its own agent so it shares no state, tools or conversation with the agent under
+    test — a judge that can see the retrieved passages grades the retrieval, not the
+    answer.
+    """
     from strands import Agent
 
     critic = Agent(
         model=build_model(),
         system_prompt=(
-            "You grade assistant answers for faithfulness. Judge only whether claims are "
-            "supported by the cited sources shown in the answer. Do not reward length or "
-            "confidence. An honest 'I don't know' when sources are missing scores 5."
+            "You grade assistant answers. Judge whether claims are supported by the "
+            "cited sources shown in the answer, and which of the expected facts the "
+            "answer actually states. Do not reward length or confidence. Paraphrase "
+            "counts as covering a fact; a near-miss on a number does not. An honest "
+            "'I don't know' when sources are missing scores 5."
         ),
     )
+
+    prompt = f"Question:\n{question}\n\nAnswer to grade:\n{answer}"
+    if expected_facts:
+        numbered = "\n".join(f"{i}. {f}" for i, f in enumerate(expected_facts, start=1))
+        prompt += f"\n\nExpected facts:\n{numbered}"
+
     try:
-        return await critic.structured_output_async(
-            Judgement,
-            f"Question:\n{question}\n\nAnswer to grade:\n{answer}",
-        )
+        return await critic.structured_output_async(Judgement, prompt)
     except Exception:  # noqa: BLE001 — a failed judge must not abort the suite
         logger.warning("Judge failed for question: %s", question[:60])
         return None
@@ -142,30 +166,44 @@ async def run_case(case: Case, use_judge: bool, semaphore: asyncio.Semaphore) ->
         recall = _keyword_recall(answer, case.expect_keywords)
         has_citation = bool(CITATION.search(answer))
 
-        if case.expect_refusal:
-            # The only correct behaviour is admitting ignorance.
-            passed = refused
-        else:
-            passed = recall >= 0.5 and not refused
-
         result = CaseResult(
             id=case.id,
             question=case.question,
             answer=answer,
-            passed=passed,
+            passed=False,
             keyword_recall=recall,
             has_citation=has_citation,
             refused=refused,
         )
 
-        if use_judge:
-            verdict = await judge(case.question, answer)
+        # Fact-graded cases always need the judge; without it there is nothing to
+        # score them on, so the flag is ignored rather than silently passing them.
+        if use_judge or case.needs_judge:
+            verdict = await judge(case.question, answer, case.expect_facts)
             if verdict:
                 result.judge_score = verdict.score
                 result.judge_reason = verdict.reason
+                if case.expect_facts:
+                    covered = {i for i in verdict.covered_facts if 1 <= i <= len(case.expect_facts)}
+                    result.fact_recall = len(covered) / len(case.expect_facts)
 
-        status = "PASS" if passed else "FAIL"
-        logger.info("%s  %-14s recall=%.2f cite=%s", status, case.id, recall, has_citation)
+        if case.expect_refusal:
+            # The only correct behaviour is admitting ignorance.
+            result.passed = refused
+        elif result.fact_recall is not None:
+            # Every expected fact must be present. These are single-answer questions,
+            # so a partial answer is a wrong answer.
+            result.passed = result.fact_recall == 1.0 and not refused
+        else:
+            result.passed = recall >= 0.5 and not refused
+
+        status = "PASS" if result.passed else "FAIL"
+        scored = (
+            f"facts={result.fact_recall:.2f}"
+            if result.fact_recall is not None
+            else f"recall={recall:.2f}"
+        )
+        logger.info("%s  %-14s %s cite=%s", status, case.id, scored, has_citation)
         return result
 
 
@@ -179,6 +217,12 @@ async def run(dataset: Path, use_judge: bool) -> dict:
     passed = sum(1 for r in results if r.passed)
     errored = sum(1 for r in results if r.error)
     judged = [r.judge_score for r in results if r.judge_score is not None]
+    facts = [r.fact_recall for r in results if r.fact_recall is not None]
+
+    # Refusal cases are reported on their own: an agent can score well overall while
+    # being unable to say "I don't know", and that failure is the expensive one.
+    refusal_cases = [r for r in results if any(c.expect_refusal for c in cases if c.id == r.id)]
+    refusal_passed = sum(1 for r in refusal_cases if r.passed)
 
     return {
         "dataset": str(dataset),
@@ -188,7 +232,11 @@ async def run(dataset: Path, use_judge: bool) -> dict:
         "errored": errored,
         "pass_rate": round(passed / len(results), 3),
         "citation_rate": round(sum(1 for r in results if r.has_citation) / len(results), 3),
+        "mean_fact_recall": round(sum(facts) / len(facts), 3) if facts else None,
         "mean_judge_score": round(sum(judged) / len(judged), 2) if judged else None,
+        "refusal_accuracy": (
+            round(refusal_passed / len(refusal_cases), 3) if refusal_cases else None
+        ),
         "cases": [asdict(r) for r in results],
     }
 
@@ -210,13 +258,17 @@ def main(argv: list[str] | None = None) -> int:
     out.write_text(json.dumps(report, indent=2, ensure_ascii=False), encoding="utf-8")
 
     print()
-    print(f"  pass rate      {report['pass_rate']:.0%}  ({report['passed']}/{report['total']})")
-    print(f"  citation rate  {report['citation_rate']:.0%}")
+    print(f"  pass rate         {report['pass_rate']:.0%}  ({report['passed']}/{report['total']})")
+    print(f"  citation rate     {report['citation_rate']:.0%}")
+    if report["mean_fact_recall"] is not None:
+        print(f"  fact recall       {report['mean_fact_recall']:.0%}")
+    if report["refusal_accuracy"] is not None:
+        print(f"  refusal accuracy  {report['refusal_accuracy']:.0%}")
     if report["mean_judge_score"] is not None:
-        print(f"  judge score    {report['mean_judge_score']}/5")
+        print(f"  judge score       {report['mean_judge_score']}/5")
     if report["errored"]:
-        print(f"  errored        {report['errored']}")
-    print(f"  report         {out}")
+        print(f"  errored           {report['errored']}")
+    print(f"  report            {out}")
 
     # Non-zero exit so this can gate a pipeline.
     return 0 if report["failed"] == 0 else 1
