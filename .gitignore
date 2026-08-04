@@ -20,3 +20,9 @@ evals/corpus/
 # only part worth version control.
 .chainlit/translations/
 .files/
+
+# draw.io writes a lock/backup file next to any diagram it has open. One got
+# committed in 0.4.0 — it is 55KB of duplicate XML that conflicts on every edit.
+.$*.drawio.bkp
+*.drawio.bkp
+*.drawio.dtmp

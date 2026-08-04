@@ -8,6 +8,50 @@ The version lives in `pyproject.toml` and is read at runtime as
 
 ## [Unreleased]
 
+## [0.4.0] — 2026-08-04
+
+The eval suite measured only generation. A RAG pipeline fails in stages that fail
+independently, so three generation-side numbers could not tell a model that
+ignored good passages from a model that never received them.
+
+### Added
+
+- **Context recall and context precision.** Scored against the retriever
+  directly — `retrieve()` is called with the question rather than capturing what
+  the agent searched for. That is deliberate: it measures the retriever as a
+  component, so the number moves when chunking, embeddings or top-k move and not
+  when the prompt changes.
+
+  Precision is rank-weighted (average precision) rather than a flat hit rate. A
+  relevant passage at rank 1 and the same passage at rank 6 are different
+  outcomes for a model reading top-down under a token budget — and a flat rate
+  cannot see the difference, which would make it useless for the decision it
+  exists to inform, since reranking changes ordering and not membership.
+
+  This closes a gap the repo had documented against itself:
+  `docs/architecture.drawio` named the trigger for building reranking as "eval
+  shows recall, not generation, is the ceiling" — a condition the eval suite had
+  no way to evaluate.
+
+- **`unanswerable_retrieval_rate`** — how often a question the corpus cannot
+  answer still returned passages. Each one is plausible-looking noise the model
+  has to refuse, so a high number means refusal accuracy is carrying weight that
+  belongs to the retrieval threshold.
+
+- `tests/test_retrieval_metrics.py` — covers the three diagnoses the pair is
+  meant to separate (retrieval ceiling, ranking problem, healthy retrieval), and
+  pins that scoring degrades to a missing number rather than a failed case when
+  the index is unreachable.
+
+### Changed
+
+- Retrieval scoring runs concurrently with the answer and is kept even when
+  generation fails — knowing the retriever was healthy is what separates a model
+  outage from an index problem.
+- Retrieval metrics are averaged over answerable cases only. On an unanswerable
+  question the expected evidence does not exist, so recall against it is
+  meaningless.
+
 ## [0.3.0] — 2026-08-04
 
 Three seams the repo had argued for and not built: filtered retrieval, versioned

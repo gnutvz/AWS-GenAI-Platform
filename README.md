@@ -166,7 +166,18 @@ The default dataset is [EnterpriseRAG-Bench](https://github.com/onyx-dot-app/Ent
 Benchmark for one reason: both of those are **CC-BY-NC**, and a non-commercial
 licence is a problem for a repo meant to be shown to customers.
 
-Three numbers, reported separately because they fail independently:
+Reported separately because they fail independently — a RAG pipeline can lose the
+answer at retrieval or at generation, and one blended number cannot tell you which.
+
+**Retrieval** — scored against the retriever directly, not the answer:
+
+| Metric | What it catches |
+|---|---|
+| **context recall** | Was the evidence retrieved at all? A ceiling: when this is low, no prompt or model change helps |
+| **context precision** | Was it ranked near the top, or buried under plausible noise? Rank-weighted, so it moves when ordering does |
+| **noise on N/A** | How often unanswerable questions still returned passages — noise the model then has to refuse |
+
+**Generation** — scored against the answer:
 
 | Metric | What it catches |
 |---|---|
@@ -177,6 +188,11 @@ Three numbers, reported separately because they fail independently:
 Refusal accuracy is the one to watch. An agent that scores well on answerable
 questions while confidently inventing answers to unanswerable ones is worse than no
 agent at all, and a single blended pass rate hides exactly that.
+
+The two halves together are what make the next decision arguable rather than
+guessed. Healthy recall with poor precision is the case reranking exists to fix;
+poor recall means reranking would change nothing, because reordering passages
+cannot add evidence that was never retrieved.
 
 The fetch script downloads Confluence only (5k of 512k documents) to keep embedding
 costs sane. It says so loudly on every run: **scores here are not comparable to
