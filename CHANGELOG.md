@@ -55,12 +55,23 @@ The version lives in `pyproject.toml` and is read at runtime as
   is why this went unnoticed.
 - `tests/test_aws.py` — pins the retry policy where it is applied, not only
   where it is defined.
+- `tests/test_contract.py` — pins the response shape returned by `agent.ask()`
+  and passed through by the Lambda handler. Any UI can front this platform, so
+  the payload is the one thing every client agrees on, and it previously existed
+  only as a dict literal. Renaming a key was a silent break: nothing failed to
+  build, and clients surfaced it as an empty answer pane rather than an error.
+  Adding a field stays free; removing or renaming one now has to argue with a
+  test.
 
 ### Changed
 
 - `services/ingest/ingest.py` builds its S3 client once instead of once per
   document. On the 5,189-document benchmark corpus that was 5,189 client
   constructions.
+- `tests/test_services.py` stubbed `ask` with a `tenant` parameter the real
+  function has never accepted — the same wrong mental model that shipped the
+  AgentCore bug in 0.1.1. A stub looser than reality accepts calls the real
+  function would reject.
 
 ## [0.1.1] — 2026-08-04
 

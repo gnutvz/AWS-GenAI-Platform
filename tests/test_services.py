@@ -163,13 +163,18 @@ class TestSearchTool:
 class TestLambdaHandler:
     @staticmethod
     def _stub_ask(monkeypatch, result=None, raises=None):
-        async def fake_ask(prompt, session_id=None, tenant="default"):
+        # Signature matches ask() exactly — no `tenant`. A stub looser than the
+        # real function accepts calls the real one would reject, which is how a
+        # caller-supplied tenant survived review in the AgentCore entrypoint.
+        # tests/test_contract.py asserts the two stay in step.
+        async def fake_ask(prompt, session_id=None):
             if raises:
                 raise raises
             return result or {
                 "answer": f"answered: {prompt}",
                 "stop_reason": "end_turn",
                 "session_id": session_id,
+                "tenant": "default",
                 "usage": {"input_tokens": 10, "output_tokens": 5, "total_tokens": 15},
             }
 
