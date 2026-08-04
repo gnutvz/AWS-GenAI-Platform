@@ -1,5 +1,8 @@
 # Architecture
 
+How the system is wired. For *why* it is split this way — platform layer versus
+workload layer, and what is still missing — see [platform.md](platform.md).
+
 ## Request flow
 
 ```mermaid

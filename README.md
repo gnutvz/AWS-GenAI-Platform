@@ -15,6 +15,10 @@ components at the seams where lock-in actually hurts.
 Idle cost is approximately zero. Nothing here runs a cluster, a warm vector database,
 or a node pool waiting for traffic.
 
+Wondering why a repo with one agent calls itself a platform? That is the right
+question — [docs/platform.md](docs/platform.md) answers it, including the parts that
+are not a platform yet.
+
 ## The one design rule
 
 > **Managed where operational risk is high and differentiation is low.
