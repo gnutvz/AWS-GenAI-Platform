@@ -34,8 +34,11 @@ ingest-path: ## Ad-hoc ingest, no metadata gate: make ingest-path SRC=./docs
 dataset: ## Download EnterpriseRAG-Bench corpus + questions (MIT, ~60MB)
 	$(PYTHON) -m evals.datasets.fetch_enterprise_bench
 
-eval: ## Run the eval suite against the deployed agent
-	$(PYTHON) -m evals.run --dataset evals/datasets/enterprise-bench.jsonl
+generate: ## Write an eval set from a tenant's own corpus: make generate TENANT=acme
+	$(PYTHON) -m evals.generate --tenant $(TENANT)
+
+eval: ## Score a tenant against its own dataset: make eval TENANT=acme
+	$(PYTHON) -m evals.run --dataset evals/datasets/$(TENANT).jsonl
 
 eval-smoke: ## Quick harness check, no corpus needed
 	$(PYTHON) -m evals.run --dataset evals/datasets/smoke.jsonl --judge
