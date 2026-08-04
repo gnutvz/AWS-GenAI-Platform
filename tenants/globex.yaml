@@ -1,0 +1,16 @@
+# Second demo tenant, so isolation is something the test suite can actually
+# check rather than something the README claims.
+#
+# Uses the GitHub slice of the same public benchmark:
+#     python -m evals.datasets.fetch_enterprise_bench --sources github
+#
+# Its corpus is genuinely different from acme's, so a retrieval leak between the
+# two would be visible in answers, not just in policy.
+
+tenant: globex
+display_name: Globex Inc (demo)
+language: en
+
+sources:
+  - path: ./evals/corpus/github
+    doc_type: technical

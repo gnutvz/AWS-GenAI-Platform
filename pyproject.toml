@@ -6,6 +6,9 @@ requires-python = ">=3.11"
 dependencies = [
     "strands-agents>=1.50",
     "boto3>=1.40",
+    # Tenant definitions. Arrives transitively via strands today, but a config
+    # loader should not depend on someone else's dependency tree.
+    "pyyaml>=6.0",
 ]
 
 [project.optional-dependencies]

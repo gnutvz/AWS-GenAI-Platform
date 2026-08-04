@@ -1,0 +1,17 @@
+# Demo tenant. Uses the Confluence slice of EnterpriseRAG-Bench — MIT licensed,
+# entirely synthetic (a fictional company), and already reproducible with
+# `make dataset`. No real customer data is in this repository.
+#
+# Paired with globex.yaml to demonstrate that two tenants get separate knowledge
+# bases and separate IAM boundaries. See tests/test_tenancy.py.
+
+tenant: acme
+display_name: Acme Corp (demo)
+language: en
+
+sources:
+  - path: ./evals/corpus/confluence
+    doc_type: general
+
+eval:
+  dataset: evals/datasets/enterprise-bench.jsonl

@@ -1,0 +1,40 @@
+# Template for a new tenant. Files starting with `_` are ignored by the loader,
+# so this one documents the format without provisioning anything.
+#
+# Copy it, rename to <slug>.yaml, then:
+#     make tenant-up TENANT=<slug>
+#
+# ⚠️  This repository is public. Never commit a tenant file that names a real
+#     customer or points at their documents. Keep customer tenants in a private
+#     repo or an untracked directory — the loader reads whatever is in tenants/,
+#     it does not require the file to live here.
+
+# Becomes part of stack names, bucket names and IAM resource ARNs.
+# Lowercase letters, digits and hyphens; 2-21 characters; starts with a letter.
+tenant: example-co
+
+display_name: Example Company
+
+# Drives the embedding model choice. This is the one behavioural setting a
+# tenant owns — possible only because each tenant has its own knowledge base.
+# Supported: en | ja | vi
+language: en
+
+sources:
+  - path: ./corpora/example-co/handbook
+    doc_type: general
+
+  - path: ./corpora/example-co/datasheets
+    doc_type: technical
+    # Documents missing any of these keys are refused at ingest rather than
+    # indexed. For anything with revisions — datasheets, policies, contracts —
+    # this is what stops the agent answering confidently from a superseded copy.
+    require_metadata:
+      - effective_date
+      - version
+
+eval:
+  # Generate questions from this tenant's own corpus, including ones that
+  # deliberately cannot be answered, so refusal accuracy is measurable.
+  generate_from_corpus: true
+  dataset: evals/datasets/example-co.jsonl
