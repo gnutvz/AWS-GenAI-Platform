@@ -8,6 +8,42 @@ The version lives in `pyproject.toml` and is read at runtime as
 
 ## [Unreleased]
 
+## [0.4.1] — 2026-08-04
+
+Two ingest defects that only show up on a real corpus — the benchmark corpus is
+one flat directory of uniquely-named files, so neither could surface there.
+
+### Fixed
+
+- **Documents with the same filename overwrote each other.** Discovery recurses
+  (`rglob`), but the S3 key was built from `path.stem` alone, so a corpus with
+  `2023/report.pdf` beside `2024/report.pdf` produced one key and indexed one
+  document. The upload logged success for both.
+
+  Keys now keep the path relative to the source root, and the original extension
+  — `report.pdf` and `report.docx` in one folder are two documents. Files that
+  are already Markdown skip the added suffix, since they cannot collide.
+
+- **One unparseable document ended the whole run.** `parse_to_markdown` was
+  called without a guard, so a corrupt PDF or a password-protected spreadsheet
+  aborted ingestion partway, leaving a half-uploaded corpus and no way to resume:
+  re-running started from the beginning and hit the same file again.
+
+  Failures are now collected and skipped. They are reported separately from
+  metadata refusals — a refusal is the gate working as designed, a failure is a
+  document whose owner still expects it to be searchable — and the process exits
+  non-zero so a scheduled ingest cannot report success while part of the corpus
+  is missing. The sync still runs, because holding back the documents that did
+  parse helps nobody.
+
+  A missing docling install still raises: it is identical for every file, so
+  continuing would print it once per document and upload nothing.
+
+### Changed
+
+- `ingest_source()` returns a `SourceReport` (uploaded / refused / failed)
+  instead of a 2-tuple.
+
 ## [0.4.0] — 2026-08-04
 
 The eval suite measured only generation. A RAG pipeline fails in stages that fail

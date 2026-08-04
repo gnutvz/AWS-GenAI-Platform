@@ -21,6 +21,7 @@ import json
 import logging
 import sys
 import time
+from dataclasses import dataclass, field
 from functools import lru_cache
 from pathlib import Path
 
@@ -161,6 +162,39 @@ def documents_under(root: Path) -> list[Path]:
     ]
 
 
+def s3_key(prefix: str, root: Path, path: Path) -> str:
+    """Where a parsed document lands, keeping whatever made its name unique.
+
+    Discovery recurses, so the directory a file sits in is load-bearing: a real
+    corpus has `2023/report.pdf` next to `2024/report.pdf`, and keying on the
+    stem alone silently overwrote the first with the second — an upload that logs
+    success and loses a document.
+
+    The original extension stays in the key for the same reason: `report.pdf` and
+    `report.docx` in one folder are two documents, not one. Only files that are
+    already Markdown skip the suffix, since `intro.md.md` reads like a mistake and
+    cannot collide with anything.
+    """
+    relative = Path(path.name) if root.is_file() else path.relative_to(root)
+    name = relative.name if relative.suffix.lower() == ".md" else f"{relative.name}.md"
+    # as_posix(): S3 keys are slash-separated regardless of the host OS.
+    return f"{prefix}{relative.with_name(name).as_posix()}"
+
+
+@dataclass
+class SourceReport:
+    """What happened to every document in one source directory.
+
+    Three outcomes, kept apart because they need different responses: refused is
+    the metadata gate working as designed, failed is something to go and fix, and
+    uploaded is the only one that ends up searchable.
+    """
+
+    uploaded: int = 0
+    refused: list[tuple[Path, list[str]]] = field(default_factory=list)
+    failed: list[tuple[Path, str]] = field(default_factory=list)
+
+
 def ingest_source(
     bucket: str,
     root: Path,
@@ -169,10 +203,16 @@ def ingest_source(
     doc_type: str,
     required_metadata: list[str],
     tenant_slug: str,
-) -> tuple[int, list[tuple[Path, list[str]]]]:
-    """Ingest one directory. Returns (uploaded count, refused documents)."""
-    uploaded = 0
-    refused: list[tuple[Path, list[str]]] = []
+) -> SourceReport:
+    """Ingest one directory.
+
+    A document that cannot be parsed is recorded and skipped rather than raising.
+    Corpora arrive with a corrupt PDF, a password-protected spreadsheet, or a file
+    whose extension lies about its contents, and aborting the run on the first one
+    leaves a half-uploaded corpus that nothing can resume — the operator re-runs
+    from the start and hits the same file again.
+    """
+    report = SourceReport()
 
     for path in documents_under(root):
         # Author-supplied metadata first, platform facts second — so the platform
@@ -187,18 +227,29 @@ def ingest_source(
 
         missing = refuse_incomplete(attributes, required_metadata)
         if missing:
-            refused.append((path, missing))
+            report.refused.append((path, missing))
             logger.warning("REFUSED %s — missing %s", path.name, ", ".join(missing))
             continue
 
         logger.info("Parsing %s", path.name)
-        markdown = parse_to_markdown(path)
-        key = f"{prefix}{path.stem}.md"
-        upload(bucket, key, markdown, attributes)
-        uploaded += 1
+        try:
+            markdown = parse_to_markdown(path)
+            key = s3_key(prefix, root, path)
+            upload(bucket, key, markdown, attributes)
+        except SystemExit:
+            # parse_to_markdown raises this when docling is missing. That is an
+            # environment problem, identical for every file — carrying on would
+            # print it once per document and upload nothing.
+            raise
+        except Exception as exc:  # noqa: BLE001 — one bad file must not end the run
+            report.failed.append((path, f"{type(exc).__name__}: {exc}"))
+            logger.warning("FAILED  %s — %s", path.name, exc)
+            continue
+
+        report.uploaded += 1
         logger.info("Uploaded s3://%s/%s (%d chars)", bucket, key, len(markdown))
 
-    return uploaded, refused
+    return report
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -240,11 +291,12 @@ def main(argv: list[str] | None = None) -> int:
 
     total_uploaded = 0
     all_refused: list[tuple[Path, list[str]]] = []
+    all_failed: list[tuple[Path, str]] = []
 
     for root, doc_type, required, prefix in plan:
         if not root.exists():
             raise SystemExit(f"Source path does not exist: {root}")
-        uploaded, refused = ingest_source(
+        report = ingest_source(
             bucket,
             root,
             prefix=prefix,
@@ -252,8 +304,18 @@ def main(argv: list[str] | None = None) -> int:
             required_metadata=required,
             tenant_slug=tenant_slug,
         )
-        total_uploaded += uploaded
-        all_refused.extend(refused)
+        total_uploaded += report.uploaded
+        all_refused.extend(report.refused)
+        all_failed.extend(report.failed)
+
+    if all_failed:
+        # Separate from refusals: a refused document was rejected on purpose, a
+        # failed one is a document the corpus owner still expects to be searchable.
+        logger.error(
+            "%d document(s) could not be parsed — they are NOT searchable:", len(all_failed)
+        )
+        for path, reason in all_failed:
+            logger.error("  %s — %s", path, reason)
 
     if all_refused:
         # Loud on purpose. A silently shrinking corpus is how a RAG system starts
@@ -269,11 +331,21 @@ def main(argv: list[str] | None = None) -> int:
         logger.error("Nothing was uploaded.")
         return 1
 
-    logger.info("Uploaded %d document(s), refused %d", total_uploaded, len(all_refused))
+    logger.info(
+        "Uploaded %d document(s), refused %d, failed %d",
+        total_uploaded,
+        len(all_refused),
+        len(all_failed),
+    )
 
+    # Sync anyway: the documents that did parse should become searchable, and
+    # holding them back does not help whoever has to fix the ones that did not.
     if not args.no_sync:
         start_sync(wait=args.wait)
-    return 0
+
+    # Non-zero so a scripted or scheduled ingest does not report success while
+    # part of the corpus is missing.
+    return 1 if all_failed else 0
 
 
 if __name__ == "__main__":

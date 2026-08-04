@@ -95,7 +95,7 @@ class TestIngestSource:
     ):
         document(tmp_path, "datasheet.md")  # no sidecar at all
 
-        uploaded, refused = ingest.ingest_source(
+        report = ingest.ingest_source(
             "bucket",
             tmp_path,
             prefix="documents/",
@@ -104,14 +104,14 @@ class TestIngestSource:
             tenant_slug="acme",
         )
 
-        assert uploaded == 0
+        assert report.uploaded == 0
         assert captured_uploads == [], "a document without a revision reached the index"
-        assert refused[0][1] == ["effective_date", "version"]
+        assert report.refused[0][1] == ["effective_date", "version"]
 
     def test_document_with_complete_metadata_is_uploaded(self, tmp_path, captured_uploads):
         document(tmp_path, "datasheet.md", {"effective_date": "2026-01-01", "version": "3"})
 
-        uploaded, refused = ingest.ingest_source(
+        report = ingest.ingest_source(
             "bucket",
             tmp_path,
             prefix="documents/",
@@ -120,7 +120,7 @@ class TestIngestSource:
             tenant_slug="acme",
         )
 
-        assert (uploaded, refused) == (1, [])
+        assert (report.uploaded, report.refused, report.failed) == (1, [], [])
         key, attributes = captured_uploads[0]
         assert key == "documents/datasheet.md"
         assert attributes["version"] == "3"
@@ -132,7 +132,7 @@ class TestIngestSource:
         document(tmp_path, "good.md", {"version": "1"})
         document(tmp_path, "bad.md")
 
-        uploaded, refused = ingest.ingest_source(
+        report = ingest.ingest_source(
             "bucket",
             tmp_path,
             prefix="documents/",
@@ -141,8 +141,8 @@ class TestIngestSource:
             tenant_slug="acme",
         )
 
-        assert uploaded == 1
-        assert [p.name for p, _ in refused] == ["bad.md"]
+        assert report.uploaded == 1
+        assert [p.name for p, _ in report.refused] == ["bad.md"]
 
     def test_every_document_is_stamped_with_its_tenant(self, tmp_path, captured_uploads):
         document(tmp_path, "notes.md")
@@ -168,3 +168,137 @@ class TestIngestSource:
             tenant_slug="globex",
         )
         assert captured_uploads[0][1]["tenant"] == "globex"
+
+
+class TestKeysStayUnique:
+    """The directory a document sits in is part of what identifies it.
+
+    Discovery recurses, so a real corpus has `2023/report.pdf` beside
+    `2024/report.pdf`. Keying on the stem alone made the second overwrite the
+    first — an upload that logged success and lost a document.
+    """
+
+    def test_same_name_in_different_folders_gets_different_keys(
+        self, tmp_path, captured_uploads
+    ):
+        (tmp_path / "2023").mkdir()
+        (tmp_path / "2024").mkdir()
+        document(tmp_path / "2023", "report.md")
+        document(tmp_path / "2024", "report.md")
+
+        report = ingest.ingest_source(
+            "bucket",
+            tmp_path,
+            prefix="documents/",
+            doc_type="general",
+            required_metadata=[],
+            tenant_slug="acme",
+        )
+
+        keys = sorted(k for k, _ in captured_uploads)
+        assert report.uploaded == 2
+        assert keys == ["documents/2023/report.md", "documents/2024/report.md"]
+        assert len(set(keys)) == 2, "one document silently overwrote the other"
+
+    def test_same_stem_different_format_gets_different_keys(self):
+        """`report.pdf` and `report.docx` are two documents, not one."""
+        root = Path("/corpus")
+        assert ingest.s3_key("documents/", root, root / "report.pdf") != ingest.s3_key(
+            "documents/", root, root / "report.docx"
+        )
+
+    def test_markdown_does_not_get_a_second_suffix(self):
+        root = Path("/corpus")
+        assert ingest.s3_key("documents/", root, root / "a" / "intro.md") == (
+            "documents/a/intro.md"
+        )
+
+    def test_non_markdown_keeps_its_original_extension(self):
+        root = Path("/corpus")
+        assert ingest.s3_key("documents/", root, root / "spec.pdf") == "documents/spec.pdf.md"
+
+    def test_a_single_file_source_has_no_directory_to_preserve(self, tmp_path):
+        """`ingest.py ./one.pdf` — root is the file itself, so relative_to() cannot apply."""
+        target = tmp_path / "one.pdf"
+        target.write_text("x", encoding="utf-8")
+        assert ingest.s3_key("documents/", target, target) == "documents/one.pdf.md"
+
+
+class TestOneBadFileDoesNotEndTheRun:
+    """Corpora arrive with a corrupt PDF or a password-protected spreadsheet.
+
+    Aborting on the first one leaves a half-uploaded corpus that nothing can
+    resume: the operator re-runs from the start and hits the same file again.
+    """
+
+    def test_a_failing_document_is_recorded_and_skipped(self, tmp_path, captured_uploads, monkeypatch):
+        document(tmp_path, "a-good.md")
+        document(tmp_path, "b-broken.md")
+        document(tmp_path, "c-good.md")
+
+        def parse(path):
+            if "broken" in path.name:
+                raise ValueError("stream error: not a PDF")
+            return "content"
+
+        monkeypatch.setattr(ingest, "parse_to_markdown", parse)
+
+        report = ingest.ingest_source(
+            "bucket",
+            tmp_path,
+            prefix="documents/",
+            doc_type="general",
+            required_metadata=[],
+            tenant_slug="acme",
+        )
+
+        assert report.uploaded == 2, "a later document was skipped after an earlier failure"
+        assert [p.name for p, _ in report.failed] == ["b-broken.md"]
+        assert "ValueError" in report.failed[0][1]
+
+    def test_failures_are_kept_apart_from_refusals(self, tmp_path, captured_uploads, monkeypatch):
+        """A refusal is the gate working; a failure is something to go and fix."""
+        document(tmp_path, "no-metadata.md")
+        document(tmp_path, "broken.md", {"version": "1"})
+        monkeypatch.setattr(ingest, "parse_to_markdown", _raise_on("broken"))
+
+        report = ingest.ingest_source(
+            "bucket",
+            tmp_path,
+            prefix="documents/",
+            doc_type="general",
+            required_metadata=["version"],
+            tenant_slug="acme",
+        )
+
+        assert [p.name for p, _ in report.refused] == ["no-metadata.md"]
+        assert [p.name for p, _ in report.failed] == ["broken.md"]
+
+    def test_a_missing_parser_still_stops_the_run(self, tmp_path, monkeypatch):
+        """SystemExit means docling is absent — identical for every file, so
+        carrying on would print it once per document and upload nothing."""
+        document(tmp_path, "a.md")
+
+        def parse(path):
+            raise SystemExit("docling not installed")
+
+        monkeypatch.setattr(ingest, "parse_to_markdown", parse)
+
+        with pytest.raises(SystemExit):
+            ingest.ingest_source(
+                "bucket",
+                tmp_path,
+                prefix="documents/",
+                doc_type="general",
+                required_metadata=[],
+                tenant_slug="acme",
+            )
+
+
+def _raise_on(marker: str):
+    def parse(path):
+        if marker in path.name:
+            raise ValueError("boom")
+        return "content"
+
+    return parse
