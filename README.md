@@ -1,5 +1,7 @@
 # AWS GenAI Platform
 
+[![CI](https://github.com/gnutvz/AWS-GenAI-Platform/actions/workflows/ci.yml/badge.svg)](https://github.com/gnutvz/AWS-GenAI-Platform/actions/workflows/ci.yml)
+
 A reference AI platform on AWS — the companion to
 [AWS-GenAI-Cookbook](https://github.com/gnutvz/AWS-GenAI-Cookbook). Where the cookbook
 shows each service on its own, this assembles them into one system.
@@ -62,17 +64,21 @@ npx cdk bootstrap                 # once per account/region
 npx cdk deploy --all              # knowledge + safety + api
 ```
 
-Copy the stack outputs into `.env`, then load a corpus and ask a question:
+Copy the stack outputs into `.env` (including `AGENT_FUNCTION_URL`), then load a
+corpus and ask a question:
 
 ```bash
-uv pip install -e '.[ingest]'
-python -m services.ingest.ingest ./your-docs --department engineering --wait
+make image-ingest                                  # docling is too heavy for Lambda
+docker run --rm -v ~/.aws:/root/.aws:ro -v "$PWD/your-docs:/data:ro" \
+  -e AWS_REGION -e DOCUMENTS_BUCKET -e KNOWLEDGE_BASE_ID \
+  aiplat-ingest /data --wait
 
-python -c "
-import asyncio; from services.agent.agent import ask
-print(asyncio.run(ask('What is the warranty period?'))['answer'])
-"
+make ask Q="What is the warranty period?"
 ```
+
+The Function URL is IAM-authenticated, so `curl` gets a 403 — `scripts/ask.py`
+SigV4-signs each request. That is deliberate: a public LLM endpoint is an
+invitation to run up someone else's Bedrock bill.
 
 Measure before you tune:
 
@@ -116,8 +122,8 @@ crashing — no knowledge base means no retrieval tool, and the agent says so.
 | Tracing locally, free | `make trace-local` (Langfuse on `localhost:3000`) |
 | Tracing and cost per call, deployed | `cdk deploy -c observability=true`, then set `OTEL_EXPORTER_OTLP_*` |
 | The prebuilt Strands tool catalogue | `pip install -e '.[tools]'` — adds ~95MB, so it is not in the Lambda bundle |
-| Per-team budgets, non-Bedrock models | Run a LiteLLM proxy, set `LLM_ROUTE=gateway` |
-| Streaming, long sessions | Deploy `services/agent/agentcore_app.py` to AgentCore Runtime |
+| Per-team budgets, non-Bedrock models | `make gateway-local`, then `LLM_ROUTE=gateway` + `MODEL_ID=platform-default` |
+| Streaming, long sessions | `make image-agent` and deploy it to AgentCore Runtime |
 | Sub-100ms retrieval at high QPS | Swap `storage_configuration` to OpenSearch Serverless |
 
 ## What this costs
@@ -145,3 +151,10 @@ the only stack here with a standing bill, which is why it is opt-in.
   "the pipeline works", not "this will work on our data".
 - **Langfuse here is v2** (Postgres only). v3 splits into web + worker and adds
   ClickHouse, Redis and S3.
+- **Nothing here has been deployed to a live account yet.** CI proves the code
+  lints, the tests pass against stubs, all four stacks synthesize, and the Lambda
+  bundle builds — it does not prove Bedrock returns what the eval suite expects.
+
+## Licence
+
+MIT — see [LICENSE](LICENSE).

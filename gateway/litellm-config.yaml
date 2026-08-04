@@ -1,0 +1,40 @@
+# LiteLLM proxy config — the LLM_ROUTE=gateway path.
+#
+# Turn this on when you need what Bedrock alone does not give you:
+#   - per-team budgets and virtual API keys
+#   - one endpoint in front of several providers
+#   - request/response logging outside CloudWatch
+#
+# What you give up: Bedrock Guardrails bind to BedrockModel natively, and that
+# binding is lost through the proxy. Enforce safety at the proxy (guardrails
+# hooks) or call ApplyGuardrail explicitly before shipping this to production.
+#
+#   docker compose --profile gateway up -d
+#   LLM_ROUTE=gateway GATEWAY_BASE_URL=http://localhost:4000 python -m evals.run ...
+
+model_list:
+  # `model_name` is what the application asks for — set MODEL_ID to this value,
+  # NOT to the Bedrock inference-profile ID. That indirection is the whole point:
+  # swapping the backing model becomes a proxy config change, not a code change.
+  - model_name: platform-default
+    litellm_params:
+      model: bedrock/global.anthropic.claude-sonnet-4-6
+      aws_region_name: os.environ/AWS_REGION
+
+  # A cheaper model to route non-critical traffic to. Point MODEL_ID here for
+  # eval judging or batch classification.
+  - model_name: platform-fast
+    litellm_params:
+      model: bedrock/global.anthropic.claude-haiku-4-5
+      aws_region_name: os.environ/AWS_REGION
+
+litellm_settings:
+  # Fall through to the next entry with the same model_name on throttling.
+  num_retries: 2
+  request_timeout: 300
+  drop_params: true
+
+general_settings:
+  # Virtual keys are minted against this. Never commit a real one — it comes from
+  # the environment, and docker-compose reads it from .env.
+  master_key: os.environ/LITELLM_MASTER_KEY

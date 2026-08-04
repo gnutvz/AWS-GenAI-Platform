@@ -36,5 +36,24 @@ services:
       SALT: local-development-salt-change-me
       TELEMETRY_ENABLED: "false"
 
+  # Opt-in: `docker compose --profile gateway up -d`. Off by default because the
+  # bedrock route needs no proxy — see gateway/litellm-config.yaml for when it
+  # earns its place.
+  gateway:
+    image: ghcr.io/berriai/litellm:main-stable
+    profiles: [gateway]
+    ports:
+      - "4000:4000"
+    volumes:
+      - ./gateway/litellm-config.yaml:/app/config.yaml:ro
+      # Read-only mount of your AWS credentials — the proxy calls Bedrock on
+      # your behalf and needs them. Nothing is written back.
+      - ~/.aws:/root/.aws:ro
+    environment:
+      AWS_REGION: ${AWS_REGION:-us-west-2}
+      AWS_PROFILE: ${AWS_PROFILE:-default}
+      LITELLM_MASTER_KEY: ${LITELLM_MASTER_KEY:-sk-local-dev-only}
+    command: ["--config", "/app/config.yaml", "--port", "4000"]
+
 volumes:
   langfuse-db:

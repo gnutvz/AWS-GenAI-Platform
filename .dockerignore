@@ -1,0 +1,16 @@
+# Build context is the repo root, so without this every image build ships the
+# downloaded corpus (~60MB) and the CDK output directory to the daemon.
+.venv/
+.git/
+.github/
+**/__pycache__/
+*.py[cod]
+.env
+
+infra/cdk.out/
+evals/corpus/
+evals/results/
+
+.pytest_cache/
+.ruff_cache/
+docs/

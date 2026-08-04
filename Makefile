@@ -31,9 +31,22 @@ eval: ## Run the eval suite against the deployed agent
 eval-smoke: ## Quick harness check, no corpus needed
 	$(PYTHON) -m evals.run --dataset evals/datasets/smoke.jsonl --judge
 
+ask: ## Ask the deployed agent: make ask Q="what is the deploy procedure?"
+	$(PYTHON) scripts/ask.py "$(Q)"
+
 trace-local: ## Run Langfuse locally on :3000 for development
 	docker compose up -d
 	@echo "Langfuse: http://localhost:3000 — create a project, then set OTEL_EXPORTER_OTLP_*"
+
+gateway-local: ## Run the LiteLLM proxy on :4000 (LLM_ROUTE=gateway)
+	docker compose --profile gateway up -d
+	@echo "Gateway: http://localhost:4000 — set LLM_ROUTE=gateway and MODEL_ID=platform-default"
+
+image-ingest: ## Build the ingest container (docling is too heavy for Lambda)
+	docker build -f services/ingest/Dockerfile -t aiplat-ingest .
+
+image-agent: ## Build the AgentCore Runtime image (arm64)
+	docker build --platform linux/arm64 -f services/agent/Dockerfile -t aiplat-agent .
 
 lint:
 	.venv/bin/ruff check aiplat services evals infra

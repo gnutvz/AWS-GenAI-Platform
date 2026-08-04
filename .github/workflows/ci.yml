@@ -1,0 +1,103 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+# No AWS credentials anywhere in this workflow — everything here runs against
+# stubs. If a check needs a real account to pass, it belongs in the eval suite,
+# not in CI.
+env:
+  AWS_REGION: us-west-2
+
+jobs:
+  python:
+    name: Lint and test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Install
+        run: |
+          uv venv --python 3.11
+          uv pip install -e '.[otel,dev]'
+
+      - name: Lint
+        run: .venv/bin/ruff check aiplat services evals infra tests scripts
+
+      - name: Test
+        run: .venv/bin/pytest -q
+
+  cdk:
+    name: Synthesize infrastructure
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Install
+        run: |
+          uv venv --python 3.11
+          uv pip install -e . aws-cdk-lib constructs
+
+      # Synthesizes the three default stacks. The Api stack is excluded here
+      # because its Lambda bundling runs a Docker build — covered by the
+      # bundle job below, which is the thing that can actually break.
+      - name: Synth
+        working-directory: infra
+        run: |
+          export PATH="$GITHUB_WORKSPACE/.venv/bin:$PATH"
+          npx cdk synth AiPlat-Knowledge --exclusively --quiet
+          npx cdk synth AiPlat-Safety --exclusively --quiet
+          npx cdk synth AiPlat-Observability --exclusively -c observability=true --quiet
+
+  bundle:
+    name: Build Lambda bundle
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Install
+        run: |
+          uv venv --python 3.11
+          uv pip install -e . aws-cdk-lib constructs
+
+      - name: Synth with bundling
+        working-directory: infra
+        run: |
+          export PATH="$GITHUB_WORKSPACE/.venv/bin:$PATH"
+          npx cdk synth AiPlat-Api --exclusively --quiet
+
+      # Lambda rejects anything over 250MB unzipped. The bundle sat at 232MB
+      # before strands-agents-tools was dropped from the default dependencies,
+      # so this guard exists to catch a dependency quietly putting it back.
+      - name: Check bundle size
+        working-directory: infra
+        run: |
+          size_mb=$(du -sm cdk.out/asset.*/ | sort -rn | head -1 | cut -f1)
+          echo "Lambda bundle: ${size_mb}MB (limit 250MB)"
+          if [ "$size_mb" -gt 200 ]; then
+            echo "::error::Bundle is ${size_mb}MB — approaching Lambda's 250MB unzipped limit."
+            exit 1
+          fi
