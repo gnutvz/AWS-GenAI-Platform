@@ -26,6 +26,7 @@ flowchart TD
         K["aiplat/knowledge.py<br/>how retrieval works"]
         T["aiplat/telemetry.py<br/>where traces go"]
         CFG["aiplat/config.py<br/>the only reader of os.environ"]
+        TEN["aiplat/tenants.py<br/>who gets their own everything"]
     end
 
     subgraph policy["Policy layer — owned by a different team"]
@@ -37,10 +38,11 @@ flowchart TD
     end
 
     A --> L & K & T
-    B --> CFG
+    B --> CFG & TEN
     C -.-> L & K & T
     L --> G
     A -.-> E
+    TEN --> INFRA["infra/app.py<br/>one stack set per tenant"]
 ```
 
 The test for whether something belongs in `aiplat/` rather than `services/`:
@@ -61,7 +63,7 @@ they will be right.
 
 ---
 
-## Five things that make it a platform rather than an agent
+## Six things that make it a platform rather than an agent
 
 **1. Application code does not name its dependencies.** `services/agent/agent.py`
 never imports `BedrockModel`. It asks `aiplat` for a model and gets whatever the
@@ -93,6 +95,15 @@ lifecycle. Application teams consume it; they do not edit it.
 accuracy, and citation rate for any workload that plugs into it. A platform that
 cannot tell you whether a change made things worse is a deployment script.
 
+**6. Tenants are an isolation boundary, not a label.** A tenant is a YAML file in
+`tenants/`; `infra/app.py` turns each one into its own knowledge base, vector
+index, documents bucket and agent function. The agent's role names exactly one
+knowledge base ARN and `TENANT` is pinned in the function environment, so
+cross-tenant retrieval is a permission nobody holds rather than a filter someone
+can forget. `tests/test_tenancy.py` asserts that against synthesized
+CloudFormation — including that no tenant's stack so much as mentions another's
+name. Onboarding a tenant is a config file, not a CDK edit.
+
 ---
 
 ## What it is not yet
@@ -101,16 +112,17 @@ Honest gaps. Each is real work, not a footnote.
 
 | Missing | Why it matters | Rough shape of the fix |
 |---|---|---|
-| **Multi-tenancy** | `tenant` is a trace label, not an isolation boundary. Every caller sees the same knowledge base. | Per-tenant KB or metadata filtering, plus tenant-scoped IAM |
-| **Self-service onboarding** | A second team cannot get started without someone editing CDK for them. | A workload template + a pipeline that provisions per-team resources |
 | **More than one workload** | One consumer cannot prove an abstraction is right. The second one always finds what the first got wrong. | Build a genuinely different service — summarisation, classification — on the same `aiplat` |
-| **End-user authn/authz** | IAM auth protects the endpoint from strangers, not user A's documents from user B. | Identity in front (Cognito / OIDC), identity propagated into retrieval filters |
-| **Cost attribution** | You can see total Bedrock spend, not spend per team. | Per-tenant virtual keys via the gateway; that is what it is for |
+| **End-user authn/authz** | IAM auth protects a tenant's endpoint from strangers. It does not protect user A's documents from user B *inside* that tenant. | Identity in front (Cognito / OIDC), identity propagated into retrieval filters |
+| **The AgentCore path takes its tenant from the caller** | `services/agent/agentcore_app.py` reads `payload["tenant"]`. On the Lambda path the tenant is pinned by the deployment and enforced by a test; on this path a caller can label itself. It is not deployed by default, but it calls itself the production path. | Pin `TENANT` from the environment as `lambda_handler.py` does, and extend `test_tenant_is_fixed_by_the_deployment` to cover it |
+| **Self-service onboarding** | Adding a tenant is a config file, but it still means a commit to this repo and a deploy by whoever holds the AWS credentials. A team cannot onboard itself. | A pipeline that provisions per-tenant stacks from a merged tenant file, with the tenant directory read from outside the repo |
+| **Per-tenant Bedrock spend** | Every resource carries a `tenant` tag, so S3, Lambda and storage split cleanly by cost allocation tag. Token spend does not — Bedrock bills the account, not the tag. | Per-tenant inference profiles, or virtual keys via the gateway; that is what it is for |
 | **Prompt lifecycle** | Prompts are literals in source. No versioning, no A/B, no rollback independent of deploy. | A prompt registry with versions the eval suite scores |
 
-Until multi-tenancy and a second workload exist, the accurate description is
-**reference platform**: correct structure, one tenant, one use case. The README
-says exactly that, and the phrasing is deliberate.
+Multi-tenancy has since been built — see point 6 above — so the remaining gap to
+a finished platform is the second workload. Until one exists, the accurate
+description is **reference platform**: correct structure, several tenants, one
+use case. The README says exactly that, and the phrasing is deliberate.
 
 ---
 
@@ -123,8 +135,14 @@ split, and for the eval harness — writing it after a quality regression means 
 cannot tell whether the regression is new.
 
 The parts deliberately *not* built early are the ones with a standing cost or a
-guessable-wrong shape: multi-tenancy designed for imaginary tenants usually
-models the wrong boundary, and self-service tooling for one team is overhead.
+guessable-wrong shape: self-service tooling for one team is overhead, and a
+prompt registry with one prompt in it is a database nobody queries.
+
+Multi-tenancy was the borderline case, and the reason it got built anyway is that
+its boundary turned out not to be a guess. Choosing S3 Vectors made a knowledge
+base per tenant cost roughly nothing at rest, so isolation could be drawn at the
+IAM layer instead of as a metadata filter — and that is the version that is
+expensive to retrofit, because retrofitting it means re-indexing every corpus.
 
 ---
 
@@ -133,8 +151,10 @@ models the wrong boundary, and self-service tooling for one team is overhead.
 When adding something, ask in this order:
 
 1. **Would a second workload need it?** No → `services/`. Yes → continue.
-2. **Does it change based on who is calling?** Yes → it is a tenancy concern; the
-   platform does not handle that yet, so say so rather than hard-coding a tenant.
+2. **Does it change based on who is calling?** Yes → it is a tenancy concern, and
+   tenancy here is resolved at deploy time, not per request. Read it from
+   `aiplat.tenants` or the pinned `TENANT` environment variable — never from the
+   request body, which would let a caller name a tenant it does not own.
 3. **Would security or compliance want to review it separately?** Yes → its own
    stack, like the guardrail.
 4. **Can it be wrong in a way users would notice?** Yes → it needs an eval case

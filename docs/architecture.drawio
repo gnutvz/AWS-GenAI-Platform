@@ -89,8 +89,14 @@
         <mxCell id="rband" value="READ PATH — one request" style="swimlane;startSize=30;fillColor=none;strokeColor=#B3B3B3;fontSize=13;fontStyle=1;align=left;spacingLeft=12;" vertex="1" parent="1">
           <mxGeometry x="40" y="450" width="1620" height="290" as="geometry" />
         </mxCell>
-        <mxCell id="r1" value="Client&#10;CLI · UI · API" style="rounded=1;fillColor=#FFFFFF;strokeColor=#666666;fontSize=11;" vertex="1" parent="rband">
+        <mxCell id="r1" value="Client&#10;CLI · API" style="rounded=1;fillColor=#FFFFFF;strokeColor=#666666;fontSize=11;" vertex="1" parent="rband">
           <mxGeometry x="30" y="70" width="130" height="56" as="geometry" />
+        </mxCell>
+        <mxCell id="r1b" value="Chat UI — Chainlit&#10;local only" style="rounded=1;fillColor=#F8CECC;strokeColor=#B85450;fontSize=11;" vertex="1" parent="rband">
+          <mxGeometry x="30" y="175" width="130" height="52" as="geometry" />
+        </mxCell>
+        <mxCell id="r1note" value="The UI does not cross the Function URL — it imports build_agent and runs in-process on local credentials. Fine on a laptop; deploying it as-is would put an unauthenticated agent in front of the tenant's knowledge base." style="text;html=1;fontSize=10;fontColor=#B85450;align=left;" vertex="1" parent="rband">
+          <mxGeometry x="30" y="231" width="330" height="46" as="geometry" />
         </mxCell>
         <mxCell id="r2" value="Function URL&#10;IAM · SigV4" style="rounded=1;fillColor=#D5E8F7;strokeColor=#4D9FD6;fontSize=11;" vertex="1" parent="rband">
           <mxGeometry x="200" y="70" width="130" height="56" as="geometry" />
@@ -127,6 +133,7 @@
         </mxCell>
 
         <mxCell id="re1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;strokeColor=#666666;" edge="1" parent="rband" source="r1" target="r2"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="re1b" value="no auth" style="edgeStyle=orthogonalEdgeStyle;rounded=0;strokeColor=#B85450;dashed=1;fontSize=10;fontColor=#B85450;" edge="1" parent="rband" source="r1b" target="r3"><mxGeometry relative="1" as="geometry" /></mxCell>
         <mxCell id="re2" style="edgeStyle=orthogonalEdgeStyle;rounded=0;strokeColor=#666666;" edge="1" parent="rband" source="r2" target="r3"><mxGeometry relative="1" as="geometry" /></mxCell>
         <mxCell id="re3" style="edgeStyle=orthogonalEdgeStyle;rounded=0;strokeColor=#666666;" edge="1" parent="rband" source="r3" target="r4"><mxGeometry relative="1" as="geometry" /></mxCell>
         <mxCell id="re4" style="edgeStyle=orthogonalEdgeStyle;rounded=0;strokeColor=#666666;" edge="1" parent="rband" source="r3" target="r5"><mxGeometry relative="1" as="geometry" /></mxCell>
@@ -360,7 +367,7 @@
         <mxCell id="rscale" value="AT SCALE — added in this order" style="swimlane;startSize=30;fillColor=none;strokeColor=#999999;dashed=1;fontSize=13;fontStyle=1;align=left;spacingLeft=12;fontColor=#666666;" vertex="1" parent="1">
           <mxGeometry x="680" y="110" width="760" height="790" as="geometry" />
         </mxCell>
-        <mxCell id="rs1" value="1 · Streaming and long sessions — move to AgentCore Runtime. Same build_agent(), different entrypoint; the image already exists." style="rounded=1;fillColor=#F5F5F5;strokeColor=#999999;dashed=1;fontSize=11;align=left;spacingLeft=8;verticalAlign=top;spacingTop=6;" vertex="1" parent="rscale">
+        <mxCell id="rs1" value="1 · Streaming and long sessions — move to AgentCore Runtime. Same build_agent(), different entrypoint; the image already exists and the entrypoint is now under test. Still needs a CDK stack: deploying it is a manual step today." style="rounded=1;fillColor=#F5F5F5;strokeColor=#999999;dashed=1;fontSize=11;align=left;spacingLeft=8;verticalAlign=top;spacingTop=6;" vertex="1" parent="rscale">
           <mxGeometry x="20" y="50" width="720" height="60" as="geometry" />
         </mxCell>
         <mxCell id="rs2" value="2 · Reranking — a cross-encoder over the top 20 before handing 6 to the model. The cheapest quality win once retrieval is the bottleneck rather than generation." style="rounded=1;fillColor=#F5F5F5;strokeColor=#999999;dashed=1;fontSize=11;align=left;spacingLeft=8;verticalAlign=top;spacingTop=6;" vertex="1" parent="rscale">
