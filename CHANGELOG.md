@@ -8,6 +8,18 @@ The version lives in `pyproject.toml` and is read at runtime as
 
 ## [Unreleased]
 
+## [0.2.0] — 2026-08-04
+
+Minor rather than patch: a deployment with `LLM_ROUTE=gateway` and a guardrail
+configured used to start and now refuses to, and the agent function gains a
+concurrency ceiling it did not have. Both are behaviour changes to a running
+system, not just bug fixes.
+
+The theme is one defect repeated. Every item below is a seam the codebase
+described in prose and never connected in code, invisible because the module
+holding it was an optional extra that nothing imported, or a value nobody
+asserted on.
+
 ### Fixed
 
 - **`LLM_ROUTE=gateway` ran without the configured guardrail, and said nothing.**
