@@ -125,8 +125,14 @@ invitation to run up someone else's Bedrock bill.
 **5. Or use the chat UI** — `pip install -e '.[ui]'` then:
 
 ```bash
-make chat          # http://localhost:8000
+make chat                    # http://localhost:8000
+make chat CHAT_PORT=8011     # if something already holds 8000
 ```
+
+Port 8000 is Chainlit's default and a popular one — a stray container or SSH
+tunnel will hold it, and the browser then lands on *that* instead, which looks
+like the app misbehaving. `make chat` checks first and names whatever is
+squatting rather than failing obscurely.
 
 Retrieval is shown rather than hidden: each search is an expandable step listing
 the passages and their sources, and a refusal is rendered as an outcome rather

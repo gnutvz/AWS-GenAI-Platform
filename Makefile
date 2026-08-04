@@ -43,8 +43,15 @@ eval: ## Score a tenant against its own dataset: make eval TENANT=acme
 eval-smoke: ## Quick harness check, no corpus needed
 	$(PYTHON) -m evals.run --dataset evals/datasets/smoke.jsonl --judge
 
-chat: ## Open the chat UI on :8000
-	.venv/bin/chainlit run app/chat.py
+# Port 8000 is Chainlit's default and a popular one — SSH tunnels and other
+# dev servers grab it constantly. Override with: make chat PORT=8001
+CHAT_PORT ?= 8000
+
+chat: ## Open the chat UI (make chat CHAT_PORT=8001 if 8000 is taken)
+	@lsof -nP -iTCP:$(CHAT_PORT) -sTCP:LISTEN >/dev/null 2>&1 \
+	  && { echo "Port $(CHAT_PORT) is already in use:"; lsof -nP -iTCP:$(CHAT_PORT) -sTCP:LISTEN; \
+	       echo; echo "Run: make chat CHAT_PORT=8001"; exit 1; } || true
+	.venv/bin/chainlit run app/chat.py --port $(CHAT_PORT)
 
 ask: ## Ask the deployed agent: make ask Q="what is the deploy procedure?"
 	$(PYTHON) scripts/ask.py "$(Q)"
