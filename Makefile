@@ -8,7 +8,7 @@ help:
 
 install: ## Create the virtualenv and install the platform
 	uv venv --python 3.11
-	uv pip install -e '.[otel,dev]'
+	uv pip install -e '.[otel,ui,dev]'
 
 env: ## Point .env at a tenant: make env TENANT=acme
 	$(PYTHON) scripts/write_env.py --tenant $(TENANT)
@@ -43,6 +43,9 @@ eval: ## Score a tenant against its own dataset: make eval TENANT=acme
 eval-smoke: ## Quick harness check, no corpus needed
 	$(PYTHON) -m evals.run --dataset evals/datasets/smoke.jsonl --judge
 
+chat: ## Open the chat UI on :8000
+	.venv/bin/chainlit run app/chat.py
+
 ask: ## Ask the deployed agent: make ask Q="what is the deploy procedure?"
 	$(PYTHON) scripts/ask.py "$(Q)"
 
@@ -61,7 +64,7 @@ image-agent: ## Build the AgentCore Runtime image (arm64)
 	docker build --platform linux/arm64 -f services/agent/Dockerfile -t aiplat-agent .
 
 lint: ## Check style
-	.venv/bin/ruff check aiplat services evals infra tests scripts
+	.venv/bin/ruff check aiplat services evals infra tests scripts app
 
 test: ## Run the offline test suite (no AWS needed)
 	.venv/bin/pytest -q

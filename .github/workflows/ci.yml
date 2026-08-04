@@ -26,10 +26,10 @@ jobs:
       - name: Install
         run: |
           uv venv --python 3.11
-          uv pip install -e '.[otel,dev]'
+          uv pip install -e '.[otel,ui,dev]'
 
       - name: Lint
-        run: .venv/bin/ruff check aiplat services evals infra tests scripts
+        run: .venv/bin/ruff check aiplat services evals infra tests scripts app
 
       - name: Test
         run: .venv/bin/pytest -q

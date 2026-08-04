@@ -121,6 +121,23 @@ The Function URL is IAM-authenticated, so `curl` gets a 403 — `scripts/ask.py`
 SigV4-signs each request. That is deliberate: a public LLM endpoint is an
 invitation to run up someone else's Bedrock bill.
 
+**5. Or use the chat UI** — `pip install -e '.[ui]'` then:
+
+```bash
+make chat          # http://localhost:8000
+```
+
+Retrieval is shown rather than hidden: each search is an expandable step listing
+the passages and their sources, and a refusal is rendered as an outcome rather
+than an error. An answer that simply materialises looks like every other chatbot;
+watching the agent look something up, cite it, and decline when it has nothing is
+the part worth demonstrating.
+
+Built on [Chainlit](https://chainlit.io) (Apache 2.0). The same `app/chat.py`
+also deploys to Slack, Teams or an embedded widget — those are deployment
+targets, not rewrites, which matters because the people who would use this are
+already in Teams all day.
+
 Run `make help` for everything else.
 
 **Tearing down:** `make destroy`. The documents bucket and knowledge base are

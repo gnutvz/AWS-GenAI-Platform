@@ -15,3 +15,8 @@ evals/results/
 # Downloaded benchmark corpus (~60MB). Reproduce with:
 #   python -m evals.datasets.fetch_enterprise_bench
 evals/corpus/
+
+# Chainlit regenerates its translation bundle on every run — config.toml is the
+# only part worth version control.
+.chainlit/translations/
+.files/

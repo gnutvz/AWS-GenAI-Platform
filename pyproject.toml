@@ -24,6 +24,9 @@ gateway = ["strands-agents[litellm]"]
 ingest = ["docling>=2.0"]
 # Deploying to Bedrock AgentCore Runtime instead of Lambda.
 agentcore = ["bedrock-agentcore>=0.1"]
+# Local chat UI. Not in the Lambda bundle — the agent serves an API; the UI is a
+# client of it.
+ui = ["chainlit>=2.0"]
 dev = ["pytest>=8.0", "ruff>=0.6"]
 
 [build-system]
