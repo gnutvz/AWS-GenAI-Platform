@@ -34,6 +34,11 @@ jobs:
       - name: Test
         run: .venv/bin/pytest -q
 
+      # Nobody adds AGPL on purpose — it arrives transitively, and by the time
+      # it reaches a customer deployment, removing it is a rewrite.
+      - name: Licences
+        run: .venv/bin/python scripts/check_licenses.py
+
   cdk:
     name: Synthesize infrastructure
     runs-on: ubuntu-latest

@@ -81,8 +81,9 @@ permissions needed, and what the security review will ask.
 git clone https://github.com/gnutvz/AWS-GenAI-Platform.git
 cd AWS-GenAI-Platform
 make install
-make test          # 33 tests, all stubbed — no credentials needed
+make test          # everything stubbed — no credentials needed
 make lint
+make licenses      # no GPL/AGPL/SSPL in the dependency tree
 ```
 
 **2. Deploy.** Three stacks, idle cost approximately zero:
@@ -221,4 +222,6 @@ the only stack here with a standing bill, which is why it is opt-in.
 
 ## Licence
 
-MIT — see [LICENSE](LICENSE).
+MIT — see [LICENSE](LICENSE). Every dependency is permissive; no GPL, AGPL,
+SSPL or BUSL in the tree, enforced on every push. Full breakdown, including the
+two things worth knowing about Langfuse and MPL, in [docs/licenses.md](docs/licenses.md).

@@ -66,5 +66,8 @@ image-agent: ## Build the AgentCore Runtime image (arm64)
 lint: ## Check style
 	.venv/bin/ruff check aiplat services evals infra tests scripts app
 
+licenses: ## Fail if a dependency arrives under a licence we cannot ship
+	$(PYTHON) scripts/check_licenses.py
+
 test: ## Run the offline test suite (no AWS needed)
 	.venv/bin/pytest -q

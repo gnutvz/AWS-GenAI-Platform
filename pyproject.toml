@@ -2,7 +2,10 @@
 name = "aiplat"
 version = "0.1.0"
 description = "Reference AI platform on AWS: managed control plane, open-source seams"
+readme = "README.md"
 requires-python = ">=3.11"
+license = "MIT"
+license-files = ["LICENSE"]
 dependencies = [
     "strands-agents>=1.50",
     "boto3>=1.40",
