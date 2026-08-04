@@ -56,20 +56,46 @@ decision rather than a rewrite.
 
 ## Quickstart
 
-Requires Python 3.11+, Node 22+, Docker (for Lambda bundling), and AWS credentials
-with Bedrock model access enabled in your region.
+**Prerequisites**
+
+| Need | Why | Install |
+|---|---|---|
+| Python 3.11+ | Runs everything | [python.org](https://www.python.org/downloads/) |
+| [uv](https://docs.astral.sh/uv/) | Package manager used by the Makefile | `curl -LsSf https://astral.sh/uv/install.sh \| sh` |
+| Node 22+ | Runs the CDK CLI via `npx` | [nodejs.org](https://nodejs.org/) |
+| Docker | Bundles the Lambda; builds the ingest image | [docker.com](https://docs.docker.com/get-docker/) |
+| AWS credentials | Deploying and calling Bedrock | `aws configure` |
+
+Bedrock **model access must be enabled** in your region before anything works —
+Bedrock console → *Model access* → enable your chat model and
+`amazon.titan-embed-text-v2`. Skipping this deploys fine and then fails at the
+first question with `AccessDeniedException`.
+
+**1. Verify it works before touching AWS.** Everything here runs offline:
 
 ```bash
-uv venv && uv pip install -e '.[otel,dev]'
-cp .env.example .env
-
-cd infra
-npx cdk bootstrap                 # once per account/region
-npx cdk deploy --all              # knowledge + safety + api
+git clone https://github.com/gnutvz/AWS-GenAI-Platform.git
+cd AWS-GenAI-Platform
+make install
+make test          # 33 tests, all stubbed — no credentials needed
+make lint
 ```
 
-Copy the stack outputs into `.env` (including `AGENT_FUNCTION_URL`), then load a
-corpus and ask a question:
+**2. Deploy.** Three stacks, idle cost approximately zero:
+
+```bash
+cd infra && npx cdk bootstrap     # once per account/region
+cd .. && make deploy
+```
+
+**3. Wire up `.env`.** The deploy prints the IDs you need and then they scroll
+away, so read them back from CloudFormation instead of copying by hand:
+
+```bash
+make env           # creates .env and fills in every stack output
+```
+
+**4. Load a corpus and ask something:**
 
 ```bash
 make image-ingest                                  # docling is too heavy for Lambda
@@ -83,6 +109,12 @@ make ask Q="What is the warranty period?"
 The Function URL is IAM-authenticated, so `curl` gets a 403 — `scripts/ask.py`
 SigV4-signs each request. That is deliberate: a public LLM endpoint is an
 invitation to run up someone else's Bedrock bill.
+
+Run `make help` for everything else.
+
+**Tearing down:** `make destroy`. The documents bucket and knowledge base are
+`RETAIN` on purpose — an accidental `destroy` should not delete a corpus that took
+an hour to index. Delete those two by hand when you actually mean it.
 
 Measure before you tune:
 

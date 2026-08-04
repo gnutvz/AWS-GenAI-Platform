@@ -10,6 +10,9 @@ install: ## Create the virtualenv and install the platform
 	uv venv --python 3.11
 	uv pip install -e '.[otel,dev]'
 
+env: ## Pull deployed stack outputs into .env
+	$(PYTHON) scripts/write_env.py
+
 deploy: ## Deploy knowledge + safety + api
 	$(CDK) deploy --all --require-approval never
 
@@ -48,8 +51,8 @@ image-ingest: ## Build the ingest container (docling is too heavy for Lambda)
 image-agent: ## Build the AgentCore Runtime image (arm64)
 	docker build --platform linux/arm64 -f services/agent/Dockerfile -t aiplat-agent .
 
-lint:
-	.venv/bin/ruff check aiplat services evals infra
+lint: ## Check style
+	.venv/bin/ruff check aiplat services evals infra tests scripts
 
-test:
+test: ## Run the offline test suite (no AWS needed)
 	.venv/bin/pytest -q

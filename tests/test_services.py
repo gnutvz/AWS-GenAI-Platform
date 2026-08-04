@@ -13,6 +13,8 @@ what the eval suite is for.
 from __future__ import annotations
 
 import json
+import sys
+from pathlib import Path
 
 import boto3
 import pytest
@@ -20,6 +22,11 @@ from botocore.stub import ANY, Stubber
 
 from aiplat import config, knowledge
 from services.agent import lambda_handler
+
+# scripts/ holds operator tooling, not an importable package — it is deliberately
+# not part of the wheel, so tests reach it by path.
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
+import write_env
 
 
 @pytest.fixture(autouse=True)
@@ -201,3 +208,50 @@ class TestLambdaHandler:
         self._stub_ask(monkeypatch, result={"answer": "Bảo hành 24 tháng", "usage": {}})
         response = lambda_handler.handler({"prompt": "bảo hành?"}, None)
         assert "Bảo hành 24 tháng" in response["body"]
+
+
+class TestWriteEnv:
+    """`make env` rewrites a file the user owns — it must not eat their edits."""
+
+    def test_updates_existing_keys_in_place(self, tmp_path):
+        env = tmp_path / ".env"
+        env.write_text("AWS_REGION=us-west-2\nKNOWLEDGE_BASE_ID=\n", encoding="utf-8")
+
+        updated, added = write_env.merge_into_env(env, {"KNOWLEDGE_BASE_ID": "kb-new"})
+
+        assert (updated, added) == (1, 0)
+        assert "KNOWLEDGE_BASE_ID=kb-new" in env.read_text()
+        assert "AWS_REGION=us-west-2" in env.read_text()
+
+    def test_preserves_comments_and_unrelated_lines(self, tmp_path):
+        env = tmp_path / ".env"
+        env.write_text(
+            "# my notes\nMY_OWN_VAR=keep-me\nKNOWLEDGE_BASE_ID=old\n", encoding="utf-8"
+        )
+
+        write_env.merge_into_env(env, {"KNOWLEDGE_BASE_ID": "kb-new"})
+
+        content = env.read_text()
+        assert "# my notes" in content
+        assert "MY_OWN_VAR=keep-me" in content
+        assert "old" not in content
+
+    def test_appends_keys_that_are_not_there_yet(self, tmp_path):
+        env = tmp_path / ".env"
+        env.write_text("AWS_REGION=us-west-2\n", encoding="utf-8")
+
+        updated, added = write_env.merge_into_env(env, {"AGENT_FUNCTION_URL": "https://x/"})
+
+        assert (updated, added) == (0, 1)
+        assert "AGENT_FUNCTION_URL=https://x/" in env.read_text()
+
+    def test_writes_a_new_file_when_none_exists(self, tmp_path):
+        env = tmp_path / ".env"
+        write_env.merge_into_env(env, {"KNOWLEDGE_BASE_ID": "kb-1"})
+        assert env.read_text().strip().endswith("KNOWLEDGE_BASE_ID=kb-1")
+
+    def test_every_mapped_output_is_a_documented_env_key(self):
+        """A stack output nobody reads is a silent no-op — catch the drift here."""
+        documented = Path(".env.example").read_text(encoding="utf-8")
+        for env_key in write_env.OUTPUT_TO_ENV.values():
+            assert f"{env_key}=" in documented, f"{env_key} missing from .env.example"
