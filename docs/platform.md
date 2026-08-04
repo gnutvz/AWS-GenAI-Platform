@@ -113,16 +113,16 @@ Honest gaps. Each is real work, not a footnote.
 | Missing | Why it matters | Rough shape of the fix |
 |---|---|---|
 | **More than one workload** | One consumer cannot prove an abstraction is right. The second one always finds what the first got wrong. | Build a genuinely different service — summarisation, classification — on the same `aiplat` |
-| **End-user authn/authz** | IAM auth protects a tenant's endpoint from strangers. It does not protect user A's documents from user B *inside* that tenant. | Identity in front (Cognito / OIDC), identity propagated into retrieval filters |
-| **The AgentCore path takes its tenant from the caller** | `services/agent/agentcore_app.py` reads `payload["tenant"]`. On the Lambda path the tenant is pinned by the deployment and enforced by a test; on this path a caller can label itself. It is not deployed by default, but it calls itself the production path. | Pin `TENANT` from the environment as `lambda_handler.py` does, and extend `test_tenant_is_fixed_by_the_deployment` to cover it |
+| **End-user identity** | IAM auth protects a tenant's endpoint from strangers. It does not protect user A's documents from user B *inside* that tenant. Retrieval can now be filtered per caller — `build_agent(retrieval_filters=...)` — but nothing knows who is calling, so nothing supplies them. | Identity in front (Cognito / OIDC), mapped to the filters the seam already accepts |
 | **Self-service onboarding** | Adding a tenant is a config file, but it still means a commit to this repo and a deploy by whoever holds the AWS credentials. A team cannot onboard itself. | A pipeline that provisions per-tenant stacks from a merged tenant file, with the tenant directory read from outside the repo |
 | **Per-tenant Bedrock spend** | Every resource carries a `tenant` tag, so S3, Lambda and storage split cleanly by cost allocation tag. Token spend does not — Bedrock bills the account, not the tag. | Per-tenant inference profiles, or virtual keys via the gateway; that is what it is for |
-| **Prompt lifecycle** | Prompts are literals in source. No versioning, no A/B, no rollback independent of deploy. | A prompt registry with versions the eval suite scores |
+| **Nothing has been deployed** | Every stack synthesizes and every test passes against stubs. None of it has met a live account, so "the IAM policy has the right shape" is not "the IAM policy is sufficient". | Deploy one tenant, run the eval suite, believe the numbers over the templates |
 
-Multi-tenancy has since been built — see point 6 above — so the remaining gap to
-a finished platform is the second workload. Until one exists, the accurate
-description is **reference platform**: correct structure, several tenants, one
-use case. The README says exactly that, and the phrasing is deliberate.
+Multi-tenancy has since been built — see point 6 above — so the remaining gaps
+to a finished platform are the second workload and a first real deployment.
+Until those exist, the accurate description is **reference platform**: correct
+structure, several tenants, one use case. The README says exactly that, and the
+phrasing is deliberate.
 
 ---
 

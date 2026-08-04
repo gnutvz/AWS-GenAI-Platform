@@ -1,6 +1,6 @@
 [project]
 name = "aiplat"
-version = "0.2.0"
+version = "0.3.0"
 description = "Reference AI platform on AWS: managed control plane, open-source seams"
 readme = "README.md"
 requires-python = ">=3.11"

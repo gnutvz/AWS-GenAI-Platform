@@ -8,6 +8,16 @@ The version lives in `pyproject.toml` and is read at runtime as
 
 ## [Unreleased]
 
+## [0.3.0] — 2026-08-04
+
+Three seams the repo had argued for and not built: filtered retrieval, versioned
+prompts, and a second runtime. Each was cheap now and expensive later — the
+retrieval filter reads metadata the ingest pipeline has always written precisely
+so it would not need a re-index, and a prompt registry added after a regression
+cannot tell you whether the regression is new.
+
+Answers gain a `prompt` field, which is a contract change.
+
 ### Added
 
 - **Filtered retrieval.** `retrieve()` accepts metadata attributes every passage
