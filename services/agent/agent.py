@@ -13,7 +13,7 @@ from strands import Agent
 from strands.session import S3SessionManager
 
 from aiplat import build_model, settings, setup_tracing, trace_attributes
-from aiplat.knowledge import search_knowledge_base
+from aiplat.knowledge import Filters, make_search_tool
 
 logger = logging.getLogger(__name__)
 
@@ -28,11 +28,17 @@ Rules you do not break:
 """
 
 
-def build_agent(session_id: str | None = None) -> Agent:
+def build_agent(
+    session_id: str | None = None, retrieval_filters: Filters | None = None
+) -> Agent:
     """Construct an agent wired to the platform's model, tools, tracing and state.
 
     Args:
         session_id: Conversation to resume. None means a stateless one-shot call.
+        retrieval_filters: Metadata every retrieved passage must match. Baked
+            into the tool, so the model cannot widen them. Nothing supplies these
+            yet — end-user identity does not exist here, and this is the seam it
+            will arrive through.
 
     The tenant is not a parameter: it is fixed by the deployment (TENANT in the
     environment). Letting a caller pass it would let a caller claim to be someone
@@ -43,7 +49,7 @@ def build_agent(session_id: str | None = None) -> Agent:
 
     tools = []
     if cfg.retrieval_enabled:
-        tools.append(search_knowledge_base)
+        tools.append(make_search_tool(retrieval_filters))
     else:
         logger.warning("KNOWLEDGE_BASE_ID unset; agent is running without retrieval")
 

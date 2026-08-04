@@ -8,6 +8,30 @@ The version lives in `pyproject.toml` and is read at runtime as
 
 ## [Unreleased]
 
+### Added
+
+- **Filtered retrieval.** `retrieve()` accepts metadata attributes every passage
+  must match, and `make_search_tool(filters)` bakes them into the tool an agent
+  is given. The ingest pipeline has always written a metadata sidecar next to
+  each document specifically so this would not require a re-index later.
+
+  Filters are deliberately *not* a tool argument. The model is a caller like any
+  other, and unlike the others it reads attacker-influenced text on every turn —
+  a retrieved passage can carry instructions. A filter the model can name is a
+  filter it can drop, with the tool schema documenting how. They live in a
+  closure instead, so `build_agent(retrieval_filters=...)` is the only way to set
+  them and there is no way to widen them from inside the conversation.
+
+  The filter grammar is equality and AND only. Every operator added is another
+  way to write a restriction that does not restrict.
+
+  Nothing supplies filters yet: end-user identity does not exist here. This is
+  the seam it will arrive through.
+
+- `tests/test_retrieval_filters.py` — covers the filter shape, and separately
+  asserts the tool exposes no filter parameter to the model. The second is the
+  control; the first is just correctness.
+
 ## [0.2.0] — 2026-08-04
 
 Minor rather than patch: a deployment with `LLM_ROUTE=gateway` and a guardrail
