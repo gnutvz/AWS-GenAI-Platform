@@ -18,6 +18,7 @@ from typing import Any
 import boto3
 from strands import tool
 
+from aiplat.aws import boto_config
 from aiplat.config import settings
 
 logger = logging.getLogger(__name__)
@@ -29,7 +30,14 @@ MIN_SCORE = 0.35
 
 @lru_cache(maxsize=1)
 def _client():
-    return boto3.client("bedrock-agent-runtime", region_name=settings().region)
+    # Shorter read timeout than the platform default: retrieval that has not
+    # answered in twenty seconds is not about to, and the agent is holding a
+    # user's request open while it waits.
+    return boto3.client(
+        "bedrock-agent-runtime",
+        region_name=settings().region,
+        config=boto_config(read_timeout=20),
+    )
 
 
 def retrieve(query: str, top_k: int = DEFAULT_TOP_K) -> list[dict[str, Any]]:

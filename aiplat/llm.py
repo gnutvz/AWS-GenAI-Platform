@@ -26,6 +26,7 @@ from typing import Any
 from strands.models import BedrockModel
 from strands.models.model import Model
 
+from aiplat.aws import boto_config
 from aiplat.config import Settings, settings
 
 logger = logging.getLogger(__name__)
@@ -47,6 +48,9 @@ def _bedrock_model(cfg: Settings, extra: dict[str, Any]) -> Model:
         # Prompt caching pays for itself as soon as the system prompt carries
         # retrieved context or a large tool catalogue.
         "cache_prompt": "default",
+        # Bedrock throttles on tokens per minute, so this is the call most likely
+        # to be rate-limited in normal operation, not in an incident.
+        "boto_client_config": boto_config(),
     }
 
     if cfg.guardrail_enabled:

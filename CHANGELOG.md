@@ -25,12 +25,31 @@ The version lives in `pyproject.toml` and is read at runtime as
   WARNING on every model construction. The flag fails closed: anything other
   than an explicit yes is a no.
 
+- **No retry policy on any AWS client.** Bedrock throttles on tokens per minute,
+  so rate limiting is the steady state of a busy tenant, not an incident.
+  boto3's default — two attempts, no client-side pacing — turned a quota the
+  account was always going to reach into an error the user sees.
+
+  `aiplat/aws.py` now owns the policy: `adaptive` retries, because the failure
+  is rate rather than chance, plus connect and read timeouts chosen to fit
+  inside the Lambda timeout. Applied to model invocation (`boto_client_config`
+  on `BedrockModel`), retrieval, and both ingest clients.
+
 ### Added
 
+- `aiplat/aws.py` — retry and timeout policy for every AWS call.
 - `tests/test_llm.py` — covers both routes by stubbing the model providers, so
   the gateway path is tested without the `gateway` extra installed. Like
   `bedrock-agentcore`, `litellm` is optional and therefore absent from CI, which
   is why this went unnoticed.
+- `tests/test_aws.py` — pins the retry policy where it is applied, not only
+  where it is defined.
+
+### Changed
+
+- `services/ingest/ingest.py` builds its S3 client once instead of once per
+  document. On the 5,189-document benchmark corpus that was 5,189 client
+  constructions.
 
 ## [0.1.1] — 2026-08-04
 

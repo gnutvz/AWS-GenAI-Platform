@@ -21,10 +21,12 @@ import json
 import logging
 import sys
 import time
+from functools import lru_cache
 from pathlib import Path
 
 import boto3
 
+from aiplat.aws import boto_config
 from aiplat.config import settings
 from aiplat.tenants import get as get_tenant
 
@@ -79,13 +81,25 @@ def refuse_incomplete(attributes: dict, required: list[str]) -> list[str]:
     return [key for key in required if not str(attributes.get(key, "")).strip()]
 
 
+@lru_cache(maxsize=1)
+def _s3():
+    # Cached because upload() runs once per document. Building a client per file
+    # costs more than the PutObject on a corpus of any size.
+    return boto3.client("s3", region_name=settings().region, config=boto_config())
+
+
+@lru_cache(maxsize=1)
+def _bedrock_agent():
+    return boto3.client("bedrock-agent", region_name=settings().region, config=boto_config())
+
+
 def upload(bucket: str, key: str, markdown: str, attributes: dict) -> None:
     """Upload the document plus a metadata sidecar.
 
     The sidecar is what makes filtered retrieval possible later (per department,
     per version). Adding it now costs nothing; retrofitting means a full re-index.
     """
-    s3 = boto3.client("s3", region_name=settings().region)
+    s3 = _s3()
     s3.put_object(
         Bucket=bucket,
         Key=key,
@@ -103,7 +117,7 @@ def upload(bucket: str, key: str, markdown: str, attributes: dict) -> None:
 def start_sync(wait: bool = False) -> str:
     """Trigger a Knowledge Base ingestion job over the S3 data source."""
     cfg = settings()
-    client = boto3.client("bedrock-agent", region_name=cfg.region)
+    client = _bedrock_agent()
     kb_id = cfg.require("knowledge_base_id")
 
     sources = client.list_data_sources(knowledgeBaseId=kb_id).get("dataSourceSummaries", [])
