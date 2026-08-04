@@ -32,6 +32,36 @@ The version lives in `pyproject.toml` and is read at runtime as
   asserts the tool exposes no filter parameter to the model. The second is the
   control; the first is just correctness.
 
+- **Versioned prompts.** The system prompt moved from a string literal in
+  `services/agent/agent.py` to `services/agent/prompts/system/v1.md`, loaded by
+  `aiplat.prompts`. A prompt is the most frequently changed and least reviewed
+  part of an agent, and as a literal it had no version — so an eval score had
+  nothing to attribute it to, a regression could not be rolled back
+  independently of the deploy that carried it, and a trace recorded what the
+  model said but not what it was told.
+
+  `v2.md` next to `v1.md` is the whole mechanism. `PROMPT_VERSION` pins a
+  deployment; unset takes the highest on disk, which is right locally and wrong
+  in production, so the setting exists to make adding a file and shipping it
+  different acts.
+
+  Not a prompt service with a database and an approval flow. That solves a
+  problem that starts when non-engineers edit prompts.
+
+  The loader is in `aiplat` because any workload needs it; the prompt text is
+  not, because it instructs one use case. Same test as everything else in that
+  package.
+
+### Changed
+
+- Answers now carry a `prompt` field (`system@v1`), and the same label is
+  stamped on every trace and included in the eval report. A client reporting a
+  bad answer was describing behaviour nobody could reproduce.
+
+  This is a contract change, declared in `tests/test_contract.py` rather than
+  noticed later — which is what asserting the field list exactly, rather than as
+  a subset, is for.
+
 ## [0.2.0] — 2026-08-04
 
 Minor rather than patch: a deployment with `LLM_ROUTE=gateway` and a guardrail

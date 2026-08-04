@@ -26,8 +26,8 @@ from pathlib import Path
 
 from pydantic import BaseModel, Field
 
-from aiplat import build_model
-from services.agent.agent import ask
+from aiplat import build_model, prompts, settings
+from services.agent.agent import SYSTEM_PROMPTS, ask
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
 logger = logging.getLogger(__name__)
@@ -226,6 +226,9 @@ async def run(dataset: Path, use_judge: bool) -> dict:
 
     return {
         "dataset": str(dataset),
+        # A score with no prompt version attached cannot answer "did this prompt
+        # change help?", which is the question this harness exists to answer.
+        "prompt": prompts.load(SYSTEM_PROMPTS, settings().prompt_version).label,
         "total": len(results),
         "passed": passed,
         "failed": len(results) - passed,

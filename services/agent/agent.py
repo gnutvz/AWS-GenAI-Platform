@@ -8,24 +8,19 @@ from reference to production, not rewritten for it.
 from __future__ import annotations
 
 import logging
+from pathlib import Path
 
 from strands import Agent
 from strands.session import S3SessionManager
 
-from aiplat import build_model, settings, setup_tracing, trace_attributes
+from aiplat import build_model, prompts, settings, setup_tracing, trace_attributes
 from aiplat.knowledge import Filters, make_search_tool
 
 logger = logging.getLogger(__name__)
 
-SYSTEM_PROMPT = """You are an internal assistant for an enterprise team.
-
-Rules you do not break:
-- Answer from retrieved passages, not from memory. If you did not retrieve it, say so.
-- Cite the source of every factual claim using the [n] markers from search results.
-- If the knowledge base returns nothing relevant, say you do not know and suggest
-  what the user could search for instead. Never fill the gap with a plausible guess.
-- Keep answers short. Length is not helpfulness.
-"""
+# The prompt belongs to this workload, not to the platform — it instructs one use
+# case. The loader that versions it is shared; the text is not.
+SYSTEM_PROMPTS = Path(__file__).parent / "prompts" / "system"
 
 
 def build_agent(
@@ -46,6 +41,7 @@ def build_agent(
     """
     setup_tracing()
     cfg = settings()
+    prompt = prompts.load(SYSTEM_PROMPTS, cfg.prompt_version)
 
     tools = []
     if cfg.retrieval_enabled:
@@ -69,9 +65,13 @@ def build_agent(
     return Agent(
         model=build_model(),
         tools=tools,
-        system_prompt=SYSTEM_PROMPT,
+        system_prompt=prompt.text,
         session_manager=session_manager,
-        trace_attributes=trace_attributes(tenant=cfg.tenant, session_id=session_id or ""),
+        # The prompt version rides along on every span. A trace that records what
+        # the model said but not what it was told cannot explain a regression.
+        trace_attributes=trace_attributes(
+            tenant=cfg.tenant, session_id=session_id or "", prompt=prompt.label
+        ),
         # Direct tool calls in evals should not pollute conversation history.
         record_direct_tool_call=False,
     )
@@ -79,6 +79,7 @@ def build_agent(
 
 async def ask(prompt: str, session_id: str | None = None) -> dict:
     """One turn. Returns the answer plus the numbers worth logging."""
+    cfg = settings()
     agent = build_agent(session_id=session_id)
     result = await agent.invoke_async(prompt)
 
@@ -87,7 +88,10 @@ async def ask(prompt: str, session_id: str | None = None) -> dict:
         "answer": str(result),
         "stop_reason": result.stop_reason,
         "session_id": session_id,
-        "tenant": settings().tenant,
+        "tenant": cfg.tenant,
+        # Which prompt produced this. Without it a client reporting a bad answer
+        # is describing behaviour nobody can reproduce.
+        "prompt": prompts.load(SYSTEM_PROMPTS, cfg.prompt_version).label,
         "usage": {
             "input_tokens": usage.get("inputTokens"),
             "output_tokens": usage.get("outputTokens"),

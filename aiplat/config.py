@@ -32,6 +32,18 @@ def _flag(name: str) -> bool:
     return _get(name).lower() in ("1", "true", "yes", "on")
 
 
+def _version(name: str) -> int | None:
+    """A pinned version number, accepting both `2` and `v2`."""
+    raw = _get(name).lstrip("vV")
+    if not raw:
+        return None
+    if not raw.isdigit():
+        # Silently ignoring this would run an unpinned prompt in a deployment
+        # whose whole point was to pin one.
+        raise RuntimeError(f"{name} must be a version number like 2 or v2, got {_get(name)!r}")
+    return int(raw)
+
+
 @dataclass(frozen=True)
 class Settings:
     region: str
@@ -59,6 +71,11 @@ class Settings:
 
     otlp_endpoint: str | None
     service_name: str
+
+    # Which prompt version this deployment serves. None means "highest on disk",
+    # which is convenient locally and wrong in production: adding a file should
+    # not be the same act as shipping it.
+    prompt_version: int | None
 
     @property
     def tracing_enabled(self) -> bool:
@@ -104,4 +121,5 @@ def settings() -> Settings:
         session_bucket=_optional("SESSION_BUCKET"),
         otlp_endpoint=_optional("OTEL_EXPORTER_OTLP_ENDPOINT"),
         service_name=_get("OTEL_SERVICE_NAME", "aiplat-agent"),
+        prompt_version=_version("PROMPT_VERSION"),
     )

@@ -12,8 +12,10 @@ empty answer pane, not as an error. So this file pins the wire format itself,
 separately from `test_services.py`, which covers handler mechanics (event
 shapes, error redaction) rather than the payload clients read.
 
-Adding a field is safe and needs no change here. Removing or renaming one should
-have to argue with a test first.
+The field list is asserted exactly, not as a subset. Adding a field is a change
+to what every client receives, so it should be a line in this file rather than a
+side effect noticed later — the same reason removing one has to argue with a
+test first.
 """
 
 from __future__ import annotations
@@ -30,7 +32,7 @@ from services.agent import lambda_handler
 
 # Every key a client may rely on. Growing this list is a feature; shrinking it,
 # or renaming anything in it, breaks every deployed client at once.
-ANSWER_FIELDS = {"answer", "stop_reason", "session_id", "tenant", "usage"}
+ANSWER_FIELDS = {"answer", "stop_reason", "session_id", "tenant", "prompt", "usage"}
 USAGE_FIELDS = {"input_tokens", "output_tokens", "total_tokens"}
 
 
@@ -98,6 +100,11 @@ class TestAnswerShape:
         stub_agent()
         assert ask(prompt="hi")["tenant"] == "acme"
 
+    def test_prompt_version_is_reported(self, stub_agent):
+        """A bad answer is only reproducible if you know what produced it."""
+        stub_agent()
+        assert ask(prompt="hi")["prompt"] == "system@v1"
+
     def test_session_id_round_trips(self, stub_agent):
         stub_agent()
         assert ask(prompt="hi", session_id="s-1")["session_id"] == "s-1"
@@ -127,6 +134,7 @@ class TestHttpEnvelope:
             "stop_reason": "end_turn",
             "session_id": None,
             "tenant": "acme",
+            "prompt": "system@v1",
             "usage": {"input_tokens": 1, "output_tokens": 2, "total_tokens": 3},
         }
         self._stub_handler_ask(monkeypatch, payload)
