@@ -27,6 +27,11 @@ def _optional(name: str) -> str | None:
     return _get(name) or None
 
 
+def _flag(name: str) -> bool:
+    """Anything other than an explicit yes is a no."""
+    return _get(name).lower() in ("1", "true", "yes", "on")
+
+
 @dataclass(frozen=True)
 class Settings:
     region: str
@@ -39,6 +44,10 @@ class Settings:
 
     gateway_base_url: str | None
     gateway_api_key: str | None
+    # Acknowledges that routing through the gateway drops native guardrail
+    # enforcement. Without it, configuring both is refused rather than silently
+    # honouring only one — see aiplat/llm.py.
+    gateway_allow_unguarded: bool
 
     guardrail_id: str | None
     guardrail_version: str
@@ -87,6 +96,7 @@ def settings() -> Settings:
         model_id=_get("MODEL_ID", DEFAULT_MODEL_ID),
         gateway_base_url=_optional("GATEWAY_BASE_URL"),
         gateway_api_key=_optional("GATEWAY_API_KEY"),
+        gateway_allow_unguarded=_flag("GATEWAY_ALLOW_UNGUARDED"),
         guardrail_id=_optional("GUARDRAIL_ID"),
         guardrail_version=_get("GUARDRAIL_VERSION", "DRAFT"),
         knowledge_base_id=_optional("KNOWLEDGE_BASE_ID"),

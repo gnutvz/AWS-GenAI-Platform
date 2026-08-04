@@ -8,6 +8,30 @@ The version lives in `pyproject.toml` and is read at runtime as
 
 ## [Unreleased]
 
+### Fixed
+
+- **`LLM_ROUTE=gateway` ran without the configured guardrail, and said nothing.**
+  Bedrock Guardrails bind to `BedrockModel`; `_gateway_model` never looked at the
+  guardrail settings, so a deployment with both `GUARDRAIL_ID` and the gateway
+  route enforced nothing. The cost of the gateway was documented in the module
+  docstring and nowhere in the code.
+
+  This is worse than having no guardrail: the guardrail is the compliance
+  artifact — a versioned policy in its own stack, built to be shown to an
+  auditor — and it passed review while never being called.
+
+  The combination is now refused at startup. Operators who enforce in the proxy
+  instead set `GATEWAY_ALLOW_UNGUARDED=true`, which is honoured but logged at
+  WARNING on every model construction. The flag fails closed: anything other
+  than an explicit yes is a no.
+
+### Added
+
+- `tests/test_llm.py` — covers both routes by stubbing the model providers, so
+  the gateway path is tested without the `gateway` extra installed. Like
+  `bedrock-agentcore`, `litellm` is optional and therefore absent from CI, which
+  is why this went unnoticed.
+
 ## [0.1.1] — 2026-08-04
 
 ### Fixed
