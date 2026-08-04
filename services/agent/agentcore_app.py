@@ -28,10 +28,11 @@ async def invoke(payload: dict):
         yield "Field 'prompt' is required."
         return
 
-    agent = build_agent(
-        session_id=payload.get("session_id"),
-        tenant=payload.get("tenant", "default"),
-    )
+    # Note: no tenant from the payload, matching lambda_handler. This runtime
+    # serves exactly one tenant, set at deploy time via TENANT, and its execution
+    # role can reach exactly one knowledge base. A caller cannot ask for someone
+    # else's data, and cannot mislabel its own traces or cost reports.
+    agent = build_agent(session_id=payload.get("session_id"))
 
     async for event in agent.stream_async(prompt):
         if chunk := event.get("data"):
