@@ -1,23 +1,43 @@
 #!/usr/bin/env python3
 """CDK entrypoint.
 
-Stack split follows blast radius, not tidiness: knowledge and safety hold durable
-state and policy, api holds disposable compute. Redeploying the agent fifty times a
-day should never risk the index or the guardrail.
+Two axes to the stack split.
 
-    cdk deploy --all                          # knowledge + safety + api
-    cdk deploy --all -c observability=true    # ... plus self-hosted Langfuse
+Across tenants: every tenant gets its own knowledge base and its own agent
+function. Deploying, breaking or deleting one tenant cannot touch another, and a
+tenant's Lambda role names exactly one knowledge base ARN — cross-tenant
+retrieval is a permission nobody holds rather than a filter someone can forget.
+
+Within a tenant: knowledge holds durable state, api holds disposable compute.
+Redeploying the agent fifty times a day should never risk the index.
+
+Shared by everyone: the guardrail (policy, not data) and observability (traces
+carry a tenant attribute).
+
+    cdk deploy --all                                    # every tenant
+    cdk deploy AiPlat-Knowledge-acme AiPlat-Api-acme    # just one
+    cdk deploy --all -c observability=true              # ... plus self-hosted Langfuse
 """
 
 from __future__ import annotations
 
 import os
+import sys
+from pathlib import Path
 
 import aws_cdk as cdk
+
+# infra/ is executed as a script by the CDK CLI, so the repo root — and with it
+# the aiplat package — is not on sys.path by default.
+REPO_ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(REPO_ROOT))
+
 from stacks.api_stack import ApiStack
 from stacks.knowledge_stack import KnowledgeStack
 from stacks.observability_stack import ObservabilityStack
 from stacks.safety_stack import SafetyStack
+
+from aiplat.tenants import load_all
 
 app = cdk.App()
 
@@ -29,7 +49,15 @@ env = cdk.Environment(
 prefix = app.node.try_get_context("prefix") or "AiPlat"
 model_id = app.node.try_get_context("model_id") or "global.anthropic.claude-sonnet-4-6"
 
-knowledge = KnowledgeStack(app, f"{prefix}-Knowledge", env=env)
+tenants = load_all(REPO_ROOT / "tenants")
+if not tenants:
+    raise SystemExit(
+        "No tenants defined. Copy tenants/_example.yaml to tenants/<slug>.yaml — "
+        "there is nothing to deploy without one."
+    )
+
+# Shared: safety policy is owned by a different team and changes on a different
+# cadence than any tenant's data.
 safety = SafetyStack(app, f"{prefix}-Safety", env=env)
 
 otlp_endpoint = ""
@@ -37,21 +65,32 @@ if app.node.try_get_context("observability"):
     observability = ObservabilityStack(app, f"{prefix}-Observability", env=env)
     otlp_endpoint = f"{observability.endpoint}/api/public/otel"
 
-api = ApiStack(
-    app,
-    f"{prefix}-Api",
-    env=env,
-    knowledge_base_id=knowledge.knowledge_base_id,
-    documents_bucket_name=knowledge.documents_bucket.bucket_name,
-    guardrail_id=safety.guardrail_id,
-    guardrail_version=safety.guardrail_version,
-    model_id=model_id,
-    otlp_endpoint=otlp_endpoint,
-    # Credentials are set after Langfuse is up and a project exists — see README.
-    otlp_headers="",
-)
-api.add_stack_dependency(knowledge)
-api.add_stack_dependency(safety)
+for tenant in tenants:
+    knowledge = KnowledgeStack(
+        app,
+        f"{prefix}-Knowledge-{tenant.slug}",
+        env=env,
+        tenant=tenant,
+        description=f"Knowledge base and documents for tenant '{tenant.slug}'",
+    )
+
+    api = ApiStack(
+        app,
+        f"{prefix}-Api-{tenant.slug}",
+        env=env,
+        tenant=tenant,
+        knowledge_base_id=knowledge.knowledge_base_id,
+        documents_bucket_name=knowledge.documents_bucket.bucket_name,
+        guardrail_id=safety.guardrail_id,
+        guardrail_version=safety.guardrail_version,
+        model_id=model_id,
+        otlp_endpoint=otlp_endpoint,
+        # Credentials are set after Langfuse is up and a project exists — see README.
+        otlp_headers="",
+        description=f"Agent runtime for tenant '{tenant.slug}'",
+    )
+    api.add_stack_dependency(knowledge)
+    api.add_stack_dependency(safety)
 
 cdk.Tags.of(app).add("project", "aiplat")
 

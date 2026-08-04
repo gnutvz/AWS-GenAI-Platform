@@ -5,8 +5,8 @@ guardrail, function URL — and then they scroll away. Copying six values out of
 console by hand is the step where a working deploy still leaves you unable to
 run anything.
 
-    python scripts/write_env.py            # writes .env
-    python scripts/write_env.py --print    # show them, change nothing
+    python scripts/write_env.py --tenant acme     # writes .env
+    python scripts/write_env.py --tenant acme --print
 
 Existing keys are updated in place; unrelated lines and comments are preserved.
 """
@@ -14,11 +14,14 @@ Existing keys are updated in place; unrelated lines and comments are preserved.
 from __future__ import annotations
 
 import argparse
+import os
 import sys
 from pathlib import Path
 
 import boto3
 from botocore.exceptions import ClientError
+
+from aiplat.tenants import load_all
 
 # Which stack output maps to which .env key. Output keys come from the CfnOutput
 # logical IDs in infra/stacks/.
@@ -32,16 +35,25 @@ OUTPUT_TO_ENV = {
     "OtlpEndpoint": "OTEL_EXPORTER_OTLP_ENDPOINT",
 }
 
-DEFAULT_STACKS = ["Knowledge", "Safety", "Api", "Observability"]
+# Shared across tenants.
+SHARED_STACKS = ["Safety", "Observability"]
+# One set per tenant — .env points at exactly one, since the CLI and eval runner
+# each talk to a single deployment.
+TENANT_STACKS = ["Knowledge", "Api"]
 
 
-def collect(prefix: str, region: str) -> dict[str, str]:
-    """Read outputs from every deployed stack. Missing stacks are skipped."""
+def stack_names(prefix: str, tenant: str) -> list[str]:
+    return [f"{prefix}-{s}" for s in SHARED_STACKS] + [
+        f"{prefix}-{s}-{tenant}" for s in TENANT_STACKS
+    ]
+
+
+def collect(prefix: str, region: str, tenant: str) -> dict[str, str]:
+    """Read outputs from the shared stacks plus one tenant's. Missing ones are skipped."""
     cfn = boto3.client("cloudformation", region_name=region)
-    values: dict[str, str] = {}
+    values: dict[str, str] = {"TENANT": tenant}
 
-    for suffix in DEFAULT_STACKS:
-        stack_name = f"{prefix}-{suffix}"
+    for stack_name in stack_names(prefix, tenant):
         try:
             stacks = cfn.describe_stacks(StackName=stack_name)["Stacks"]
         except ClientError as exc:
@@ -90,25 +102,39 @@ def merge_into_env(path: Path, values: dict[str, str]) -> tuple[int, int]:
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--tenant", help="Which tenant to point .env at")
     parser.add_argument("--prefix", default="AiPlat", help="CDK stack name prefix")
     parser.add_argument("--region", help="Defaults to the configured region")
     parser.add_argument("--env-file", type=Path, default=Path(".env"))
     parser.add_argument("--print", action="store_true", dest="print_only")
     args = parser.parse_args(argv)
 
+    # Checked before anything AWS-shaped: it costs nothing and is the mistake a
+    # first-time user actually makes.
+    tenant = args.tenant or os.environ.get("TENANT", "")
+    if not tenant:
+        known = ", ".join(t.slug for t in load_all()) or "none defined"
+        raise SystemExit(
+            f"Which tenant? Pass --tenant (or set TENANT). Defined tenants: {known}"
+        )
+
     session = boto3.Session()
-    region = args.region or session.region_name
+    # AWS_REGION is what CDK and the Lambda runtime use; boto3 resolves
+    # AWS_DEFAULT_REGION and the shared config file. Accept all three.
+    region = args.region or os.environ.get("AWS_REGION") or session.region_name
     if not region:
         raise SystemExit("No region configured. Set AWS_REGION or run `aws configure`.")
     if session.get_credentials() is None:
         raise SystemExit("No AWS credentials found. Run `aws configure` first.")
 
-    print(f"Reading stack outputs in {region}:", file=sys.stderr)
-    values = collect(args.prefix, region)
+    print(f"Reading stack outputs for tenant {tenant!r} in {region}:", file=sys.stderr)
+    values = collect(args.prefix, region, tenant)
 
-    if not values:
+    # TENANT alone is not evidence anything is deployed.
+    if len(values) <= 1:
         raise SystemExit(
-            f"No stacks found with prefix {args.prefix!r}. Deploy first: make deploy"
+            f"No stacks found for tenant {tenant!r} with prefix {args.prefix!r}. "
+            f"Deploy first: make deploy"
         )
 
     if args.print_only:

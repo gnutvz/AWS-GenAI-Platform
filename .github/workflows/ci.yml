@@ -60,8 +60,9 @@ jobs:
         working-directory: infra
         run: |
           export PATH="$GITHUB_WORKSPACE/.venv/bin:$PATH"
-          npx cdk synth AiPlat-Knowledge --exclusively --quiet
           npx cdk synth AiPlat-Safety --exclusively --quiet
+          npx cdk synth AiPlat-Knowledge-acme --exclusively --quiet
+          npx cdk synth AiPlat-Knowledge-globex --exclusively --quiet
           npx cdk synth AiPlat-Observability --exclusively -c observability=true --quiet
 
   bundle:
@@ -87,7 +88,7 @@ jobs:
         working-directory: infra
         run: |
           export PATH="$GITHUB_WORKSPACE/.venv/bin:$PATH"
-          npx cdk synth AiPlat-Api --exclusively --quiet
+          npx cdk synth AiPlat-Api-acme --exclusively --quiet
 
       # Lambda rejects anything over 250MB unzipped. The bundle sat at 232MB
       # before strands-agents-tools was dropped from the default dependencies,

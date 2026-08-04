@@ -27,11 +27,10 @@ def handler(event: dict, context: object) -> dict:
             return _response(400, {"error": "Field 'prompt' is required"})
 
         result = asyncio.run(
-            ask(
-                prompt=prompt,
-                session_id=body.get("session_id"),
-                tenant=body.get("tenant", "default"),
-            )
+            # Note: no tenant from the body. This function serves exactly one
+            # tenant, set at deploy time, and its IAM role can reach exactly one
+            # knowledge base. A caller cannot ask for someone else's data.
+            ask(prompt=prompt, session_id=body.get("session_id"))
         )
         return _response(200, result)
 

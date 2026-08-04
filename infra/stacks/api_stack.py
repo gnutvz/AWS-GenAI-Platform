@@ -14,12 +14,14 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from aws_cdk import BundlingOptions, CfnOutput, Duration, RemovalPolicy, Stack
+from aws_cdk import BundlingOptions, CfnOutput, Duration, RemovalPolicy, Stack, Tags
 from aws_cdk import aws_iam as iam
 from aws_cdk import aws_lambda as lambda_
 from aws_cdk import aws_logs as logs
 from aws_cdk import aws_s3 as s3
 from constructs import Construct
+
+from aiplat.tenants import Tenant
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
@@ -30,6 +32,7 @@ class ApiStack(Stack):
         scope: Construct,
         construct_id: str,
         *,
+        tenant: Tenant,
         knowledge_base_id: str,
         documents_bucket_name: str,
         guardrail_id: str,
@@ -40,6 +43,9 @@ class ApiStack(Stack):
         **kwargs,
     ) -> None:
         super().__init__(scope, construct_id, **kwargs)
+
+        self.tenant = tenant
+        Tags.of(self).add("tenant", tenant.slug)
 
         # Conversation state. Lifecycle rule rather than manual cleanup: sessions are
         # cheap to keep for a month and pointless to keep forever.
@@ -101,6 +107,7 @@ class ApiStack(Stack):
             memory_size=1024,
             log_group=log_group,
             environment={
+                "TENANT": tenant.slug,
                 "LLM_ROUTE": "bedrock",
                 "MODEL_ID": model_id,
                 "KNOWLEDGE_BASE_ID": knowledge_base_id,

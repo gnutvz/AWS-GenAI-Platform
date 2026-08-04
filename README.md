@@ -71,6 +71,10 @@ Bedrock console → *Model access* → enable your chat model and
 `amazon.titan-embed-text-v2`. Skipping this deploys fine and then fails at the
 first question with `AccessDeniedException`.
 
+Deploying into someone else's account? [docs/aws-requirements.md](docs/aws-requirements.md)
+is a checklist to hand their platform team: services touched, quotas to check,
+permissions needed, and what the security review will ask.
+
 **1. Verify it works before touching AWS.** Everything here runs offline:
 
 ```bash
@@ -89,11 +93,18 @@ cd .. && make deploy
 ```
 
 **3. Wire up `.env`.** The deploy prints the IDs you need and then they scroll
-away, so read them back from CloudFormation instead of copying by hand:
+away, so read them back from CloudFormation instead of copying by hand. `.env`
+points at one tenant at a time:
 
 ```bash
-make env           # creates .env and fills in every stack output
+make env TENANT=acme
 ```
+
+Each tenant in `tenants/*.yaml` gets its own knowledge base, its own agent
+function, and an IAM role scoped to exactly one knowledge base ARN — so
+cross-tenant retrieval is a permission nobody holds rather than a filter someone
+can forget. `tests/test_tenancy.py` enforces that against the synthesized
+CloudFormation.
 
 **4. Load a corpus and ask something:**
 

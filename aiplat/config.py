@@ -30,6 +30,10 @@ def _optional(name: str) -> str | None:
 @dataclass(frozen=True)
 class Settings:
     region: str
+    # Which tenant this deployment serves. Comes from the environment, never from
+    # the request — a caller must not be able to label itself as someone else, or
+    # traces and cost attribution become fiction.
+    tenant: str
     llm_route: LlmRoute
     model_id: str
 
@@ -78,6 +82,7 @@ def settings() -> Settings:
 
     return Settings(
         region=_get("AWS_REGION") or _get("AWS_DEFAULT_REGION", "us-west-2"),
+        tenant=_get("TENANT", "default"),
         llm_route=route,  # type: ignore[arg-type]
         model_id=_get("MODEL_ID", DEFAULT_MODEL_ID),
         gateway_base_url=_optional("GATEWAY_BASE_URL"),

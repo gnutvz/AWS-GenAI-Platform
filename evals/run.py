@@ -147,7 +147,7 @@ async def judge(question: str, answer: str, expected_facts: list[str]) -> Judgem
 async def run_case(case: Case, use_judge: bool, semaphore: asyncio.Semaphore) -> CaseResult:
     async with semaphore:
         try:
-            outcome = await ask(case.question, tenant="eval")
+            outcome = await ask(case.question)
             answer = outcome["answer"]
         except Exception as exc:
             logger.exception("Case %s failed", case.id)

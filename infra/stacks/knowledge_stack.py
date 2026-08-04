@@ -10,29 +10,47 @@ The trade-off is real and worth stating out loud: S3 Vectors has higher query la
 than a warm OpenSearch cluster and fewer knobs (no custom analyzers, no BM25 tuning).
 For sub-100ms retrieval at sustained QPS, switch `storage_configuration` to
 OpenSearch Serverless — the Knowledge Base, data source and agent code are unchanged.
+
+**One stack per tenant.** Each tenant gets its own knowledge base, vector index and
+documents bucket, rather than sharing an index and filtering by tenant on retrieval.
+Two reasons. Isolation becomes an IAM boundary — a tenant's agent role names exactly
+one knowledge base ARN, so cross-tenant retrieval is not a bug that can be written.
+And the embedding model becomes a per-tenant choice, which a shared index could not
+offer at all; that matters as soon as one corpus is Japanese and another is English.
+
+This is affordable only because the vector store is S3 Vectors. With a per-index
+standing cost, one knowledge base per tenant would be a non-starter.
 """
 
 from __future__ import annotations
 
-from aws_cdk import CfnOutput, RemovalPolicy, Stack
+from aws_cdk import CfnOutput, RemovalPolicy, Stack, Tags
 from aws_cdk import aws_bedrock as bedrock
 from aws_cdk import aws_iam as iam
 from aws_cdk import aws_s3 as s3
 from aws_cdk import aws_s3vectors as s3vectors
 from constructs import Construct
 
-# Titan v2 at 1024 dimensions: the default trade-off point between recall and
-# storage cost. Changing this later means a full re-index, so it is set once here.
-EMBEDDING_MODEL = "amazon.titan-embed-text-v2:0"
-EMBEDDING_DIMENSION = 1024
+from aiplat.tenants import Tenant
 
 # Bedrock stores the chunk text under this key; it must not be filterable.
 BEDROCK_TEXT_KEY = "AMAZON_BEDROCK_TEXT"
 
 
 class KnowledgeStack(Stack):
-    def __init__(self, scope: Construct, construct_id: str, **kwargs) -> None:
+    def __init__(
+        self, scope: Construct, construct_id: str, *, tenant: Tenant, **kwargs
+    ) -> None:
         super().__init__(scope, construct_id, **kwargs)
+
+        self.tenant = tenant
+        # Every resource in this stack belongs to one tenant — tag it so cost
+        # reports and audits can answer "whose is this?" without reading CDK.
+        Tags.of(self).add("tenant", tenant.slug)
+
+        # Changing this means re-indexing the tenant, which is possible precisely
+        # because knowledge bases are not shared.
+        embedding_model, embedding_dimension = tenant.embedding
 
         # --- Source documents ------------------------------------------------
         self.documents_bucket = s3.Bucket(
@@ -55,10 +73,10 @@ class KnowledgeStack(Stack):
         index = s3vectors.CfnIndex(
             self,
             "VectorIndex",
-            index_name="knowledge-index",
+            index_name=f"{tenant.slug}-index",
             vector_bucket_arn=vector_bucket.attr_vector_bucket_arn,
             data_type="float32",
-            dimension=EMBEDDING_DIMENSION,
+            dimension=embedding_dimension,
             distance_metric="cosine",
             metadata_configuration=s3vectors.CfnIndex.MetadataConfigurationProperty(
                 non_filterable_metadata_keys=[BEDROCK_TEXT_KEY]
@@ -81,7 +99,7 @@ class KnowledgeStack(Stack):
             iam.PolicyStatement(
                 actions=["bedrock:InvokeModel"],
                 resources=[
-                    f"arn:aws:bedrock:{self.region}::foundation-model/{EMBEDDING_MODEL}"
+                    f"arn:aws:bedrock:{self.region}::foundation-model/{embedding_model}"
                 ],
             )
         )
@@ -106,13 +124,13 @@ class KnowledgeStack(Stack):
         self.knowledge_base = bedrock.CfnKnowledgeBase(
             self,
             "KnowledgeBase",
-            name=f"{self.stack_name}-kb",
+            name=f"{self.stack_name}-kb",  # already carries the tenant slug
             role_arn=kb_role.role_arn,
             knowledge_base_configuration=bedrock.CfnKnowledgeBase.KnowledgeBaseConfigurationProperty(
                 type="VECTOR",
                 vector_knowledge_base_configuration=bedrock.CfnKnowledgeBase.VectorKnowledgeBaseConfigurationProperty(
                     embedding_model_arn=(
-                        f"arn:aws:bedrock:{self.region}::foundation-model/{EMBEDDING_MODEL}"
+                        f"arn:aws:bedrock:{self.region}::foundation-model/{embedding_model}"
                     ),
                 ),
             ),

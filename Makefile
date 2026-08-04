@@ -10,11 +10,14 @@ install: ## Create the virtualenv and install the platform
 	uv venv --python 3.11
 	uv pip install -e '.[otel,dev]'
 
-env: ## Pull deployed stack outputs into .env
-	$(PYTHON) scripts/write_env.py
+env: ## Point .env at a tenant: make env TENANT=acme
+	$(PYTHON) scripts/write_env.py --tenant $(TENANT)
 
-deploy: ## Deploy knowledge + safety + api
+deploy: ## Deploy every tenant (and shared stacks)
 	$(CDK) deploy --all --require-approval never
+
+deploy-tenant: ## Deploy one tenant: make deploy-tenant TENANT=acme
+	$(CDK) deploy AiPlat-Safety AiPlat-Knowledge-$(TENANT) AiPlat-Api-$(TENANT) --require-approval never
 
 deploy-obs: ## Deploy everything including self-hosted Langfuse (has a standing cost)
 	$(CDK) deploy --all -c observability=true --require-approval never

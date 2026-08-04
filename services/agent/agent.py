@@ -28,12 +28,15 @@ Rules you do not break:
 """
 
 
-def build_agent(session_id: str | None = None, tenant: str = "default") -> Agent:
+def build_agent(session_id: str | None = None) -> Agent:
     """Construct an agent wired to the platform's model, tools, tracing and state.
 
     Args:
         session_id: Conversation to resume. None means a stateless one-shot call.
-        tenant: Stamped on traces so cost and latency can be sliced per team.
+
+    The tenant is not a parameter: it is fixed by the deployment (TENANT in the
+    environment). Letting a caller pass it would let a caller claim to be someone
+    else on every trace and cost report.
     """
     setup_tracing()
     cfg = settings()
@@ -62,15 +65,15 @@ def build_agent(session_id: str | None = None, tenant: str = "default") -> Agent
         tools=tools,
         system_prompt=SYSTEM_PROMPT,
         session_manager=session_manager,
-        trace_attributes=trace_attributes(tenant=tenant, session_id=session_id or ""),
+        trace_attributes=trace_attributes(tenant=cfg.tenant, session_id=session_id or ""),
         # Direct tool calls in evals should not pollute conversation history.
         record_direct_tool_call=False,
     )
 
 
-async def ask(prompt: str, session_id: str | None = None, tenant: str = "default") -> dict:
+async def ask(prompt: str, session_id: str | None = None) -> dict:
     """One turn. Returns the answer plus the numbers worth logging."""
-    agent = build_agent(session_id=session_id, tenant=tenant)
+    agent = build_agent(session_id=session_id)
     result = await agent.invoke_async(prompt)
 
     usage = getattr(result.metrics, "accumulated_usage", {}) or {}
@@ -78,6 +81,7 @@ async def ask(prompt: str, session_id: str | None = None, tenant: str = "default
         "answer": str(result),
         "stop_reason": result.stop_reason,
         "session_id": session_id,
+        "tenant": settings().tenant,
         "usage": {
             "input_tokens": usage.get("inputTokens"),
             "output_tokens": usage.get("outputTokens"),
