@@ -70,6 +70,17 @@ image-ingest: ## Build the ingest container (docling is too heavy for Lambda)
 image-agent: ## Build the AgentCore Runtime image (arm64)
 	docker build --platform linux/arm64 -f services/agent/Dockerfile -t aiplat-agent .
 
+push-agent: ## Push the agent image to a tenant's repo: make push-agent TENANT=acme
+	@test -n "$(TENANT)" || { echo "TENANT is required: make push-agent TENANT=acme"; exit 1; }
+	$(eval REGION := $(shell aws configure get region || echo us-west-2))
+	$(eval ACCOUNT := $(shell aws sts get-caller-identity --query Account --output text))
+	$(eval REPO := $(ACCOUNT).dkr.ecr.$(REGION).amazonaws.com/aiplat-agent-$(TENANT))
+	aws ecr get-login-password --region $(REGION) \
+	  | docker login --username AWS --password-stdin $(ACCOUNT).dkr.ecr.$(REGION).amazonaws.com
+	docker tag aiplat-agent:latest $(REPO):latest
+	docker push $(REPO):latest
+	@echo "Pushed $(REPO):latest — now: cd infra && npx cdk deploy -c agentcore=true"
+
 lint: ## Check style
 	.venv/bin/ruff check aiplat services evals infra tests scripts app
 

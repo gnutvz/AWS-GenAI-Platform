@@ -23,7 +23,9 @@ from aws_cdk.assertions import Template
 
 from aiplat.tenants import Tenant
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "infra"))
+# Appended, not prepended: infra/app.py would otherwise shadow the app/
+# package for every test collected after this one.
+sys.path.append(str(Path(__file__).resolve().parents[1] / "infra"))
 from stacks.api_stack import ApiStack
 from stacks.knowledge_stack import KnowledgeStack
 

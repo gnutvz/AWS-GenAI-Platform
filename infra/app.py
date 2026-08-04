@@ -32,6 +32,7 @@ import aws_cdk as cdk
 REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO_ROOT))
 
+from stacks.agentcore_stack import AgentCoreStack
 from stacks.api_stack import ApiStack
 from stacks.knowledge_stack import KnowledgeStack
 from stacks.observability_stack import ObservabilityStack
@@ -39,59 +40,97 @@ from stacks.safety_stack import SafetyStack
 
 from aiplat.tenants import load_all
 
-app = cdk.App()
 
-env = cdk.Environment(
-    account=os.environ.get("CDK_DEFAULT_ACCOUNT"),
-    region=os.environ.get("CDK_DEFAULT_REGION") or os.environ.get("AWS_REGION", "us-west-2"),
-)
+def main() -> None:
+    """Build every stack and synthesize.
 
-prefix = app.node.try_get_context("prefix") or "AiPlat"
-model_id = app.node.try_get_context("model_id") or "global.anthropic.claude-sonnet-4-6"
+    Behind a __main__ guard rather than at module level, which matters more than
+    it looks. Anything that puts `infra/` on sys.path — the stack tests do —
+    makes this module shadow the `app/` package, and importing it used to build
+    the whole app as a side effect: `from app import chat` would start a Docker
+    bundle of the Lambda. cdk.json runs `python3 app.py`, so the guard costs
+    nothing.
+    """
+    app = cdk.App()
 
-tenants = load_all(REPO_ROOT / "tenants")
-if not tenants:
-    raise SystemExit(
-        "No tenants defined. Copy tenants/_example.yaml to tenants/<slug>.yaml — "
-        "there is nothing to deploy without one."
+    env = cdk.Environment(
+        account=os.environ.get("CDK_DEFAULT_ACCOUNT"),
+        region=os.environ.get("CDK_DEFAULT_REGION") or os.environ.get("AWS_REGION", "us-west-2"),
     )
 
-# Shared: safety policy is owned by a different team and changes on a different
-# cadence than any tenant's data.
-safety = SafetyStack(app, f"{prefix}-Safety", env=env)
+    prefix = app.node.try_get_context("prefix") or "AiPlat"
+    model_id = app.node.try_get_context("model_id") or "global.anthropic.claude-sonnet-4-6"
 
-otlp_endpoint = ""
-if app.node.try_get_context("observability"):
-    observability = ObservabilityStack(app, f"{prefix}-Observability", env=env)
-    otlp_endpoint = f"{observability.endpoint}/api/public/otel"
+    tenants = load_all(REPO_ROOT / "tenants")
+    if not tenants:
+        raise SystemExit(
+            "No tenants defined. Copy tenants/_example.yaml to tenants/<slug>.yaml — "
+            "there is nothing to deploy without one."
+        )
 
-for tenant in tenants:
-    knowledge = KnowledgeStack(
-        app,
-        f"{prefix}-Knowledge-{tenant.slug}",
-        env=env,
-        tenant=tenant,
-        description=f"Knowledge base and documents for tenant '{tenant.slug}'",
-    )
+    # Shared: safety policy is owned by a different team and changes on a different
+    # cadence than any tenant's data.
+    safety = SafetyStack(app, f"{prefix}-Safety", env=env)
 
-    api = ApiStack(
-        app,
-        f"{prefix}-Api-{tenant.slug}",
-        env=env,
-        tenant=tenant,
-        knowledge_base_id=knowledge.knowledge_base_id,
-        documents_bucket_name=knowledge.documents_bucket.bucket_name,
-        guardrail_id=safety.guardrail_id,
-        guardrail_version=safety.guardrail_version,
-        model_id=model_id,
-        otlp_endpoint=otlp_endpoint,
-        # Credentials are set after Langfuse is up and a project exists — see README.
-        otlp_headers="",
-        description=f"Agent runtime for tenant '{tenant.slug}'",
-    )
-    api.add_stack_dependency(knowledge)
-    api.add_stack_dependency(safety)
+    otlp_endpoint = ""
+    if app.node.try_get_context("observability"):
+        observability = ObservabilityStack(app, f"{prefix}-Observability", env=env)
+        otlp_endpoint = f"{observability.endpoint}/api/public/otel"
 
-cdk.Tags.of(app).add("project", "aiplat")
+    for tenant in tenants:
+        knowledge = KnowledgeStack(
+            app,
+            f"{prefix}-Knowledge-{tenant.slug}",
+            env=env,
+            tenant=tenant,
+            description=f"Knowledge base and documents for tenant '{tenant.slug}'",
+        )
 
-app.synth()
+        api = ApiStack(
+            app,
+            f"{prefix}-Api-{tenant.slug}",
+            env=env,
+            tenant=tenant,
+            knowledge_base_id=knowledge.knowledge_base_id,
+            documents_bucket_name=knowledge.documents_bucket.bucket_name,
+            guardrail_id=safety.guardrail_id,
+            guardrail_version=safety.guardrail_version,
+            model_id=model_id,
+            otlp_endpoint=otlp_endpoint,
+            # Credentials are set after Langfuse is up and a project exists — see README.
+            otlp_headers="",
+            description=f"Agent runtime for tenant '{tenant.slug}'",
+        )
+        api.add_stack_dependency(knowledge)
+        api.add_stack_dependency(safety)
+
+        # Opt-in: Lambda is the default runtime and AgentCore is the promotion, taken
+        # when streaming or long sessions start to matter. Same build_agent() either
+        # way — that is the point of the split, and this stack is what makes the
+        # claim checkable rather than asserted.
+        if app.node.try_get_context("agentcore"):
+            agentcore = AgentCoreStack(
+                app,
+                f"{prefix}-AgentCore-{tenant.slug}",
+                env=env,
+                tenant=tenant,
+                knowledge_base_id=knowledge.knowledge_base_id,
+                documents_bucket_name=knowledge.documents_bucket.bucket_name,
+                session_bucket_name=api.session_bucket.bucket_name,
+                guardrail_id=safety.guardrail_id,
+                guardrail_version=safety.guardrail_version,
+                model_id=model_id,
+                otlp_endpoint=otlp_endpoint,
+                otlp_headers="",
+                description=f"AgentCore Runtime for tenant '{tenant.slug}'",
+            )
+            # Reuses the session bucket the api stack owns, so state survives the move.
+            agentcore.add_stack_dependency(api)
+
+    cdk.Tags.of(app).add("project", "aiplat")
+
+    app.synth()
+
+
+if __name__ == "__main__":
+    main()

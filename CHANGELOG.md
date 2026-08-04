@@ -52,7 +52,35 @@ The version lives in `pyproject.toml` and is read at runtime as
   not, because it instructs one use case. Same test as everything else in that
   package.
 
+- **An AgentCore Runtime stack.** `infra/stacks/agentcore_stack.py`, opt-in with
+  `cdk deploy -c agentcore=true`. Lambda stays the default; this is the
+  promotion taken when streaming, long sessions or managed identity start to
+  matter.
+
+  The platform's central claim is that changing runtime is a deployment
+  decision rather than a rewrite. That was half checkable while only one runtime
+  had a stack. The tests now assert the properties that make the Lambda path
+  defensible survive the move — retrieval scoped to one knowledge base ARN,
+  inference scoped away from the control plane, the tenant fixed by the
+  deployment.
+
+  The image is not built at synth time on purpose: `DockerImageAsset` would make
+  `cdk synth` and every stack test require Docker. The stack creates a per-tenant
+  ECR repository and `make push-agent TENANT=<slug>` pushes to it.
+
+  Not deployed or verified against a live account. Synthesis proves the
+  template's shape, not that AgentCore accepts it.
+
 ### Changed
+
+- **`infra/app.py` builds its stacks inside `main()` behind a `__main__` guard.**
+  It used to build them at import. Any test putting `infra/` on `sys.path` made
+  that module shadow the `app/` package, so `from app import chat` in
+  `tests/test_chat_ui.py` started a Docker bundle of the Lambda instead of
+  importing the chat UI. It only stayed hidden because the two tests that add
+  that path sorted after the one that imports `app`. Adding a third, earlier
+  one surfaced it. The tests now append rather than prepend, and the guard makes
+  importing the module harmless either way.
 
 - Answers now carry a `prompt` field (`system@v1`), and the same label is
   stamped on every trace and included in the eval report. A client reporting a
