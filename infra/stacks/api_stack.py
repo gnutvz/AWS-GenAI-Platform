@@ -8,6 +8,11 @@ require an application rewrite to escape (see services/agent/agentcore_app.py).
 
 Function URL is IAM-authenticated rather than public. A public LLM endpoint is an
 open invitation to run up someone else's Bedrock bill.
+
+Authentication answers who may call. It does not answer how often, and the two
+failures look nothing alike on an invoice: an authorised client in a retry loop
+spends real money without anything looking wrong. Hence the concurrency cap
+below — the second half of the same argument.
 """
 
 from __future__ import annotations
@@ -24,6 +29,20 @@ from constructs import Construct
 from aiplat.tenants import Tenant
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
+
+# Ceiling on simultaneous agent invocations per tenant.
+#
+# Every concurrent execution is a model call in flight, so this is the only place
+# that bounds how fast one tenant can spend. Without it a client stuck in a retry
+# loop scales straight to the account limit, and Bedrock bills every token of it.
+#
+# The number is deliberately small. Reserved concurrency is taken from the
+# account pool (1,000 by default and shared with every other function in the
+# account), so this does not scale to hundreds of tenants unmodified — at that
+# point either raise the account limit or move to AgentCore Runtime, which is the
+# migration this stack already leaves open. Override per deployment with
+# `cdk deploy -c agent_concurrency=N`.
+DEFAULT_AGENT_CONCURRENCY = 10
 
 
 class ApiStack(Stack):
@@ -105,6 +124,10 @@ class ApiStack(Stack):
             # agent stops burning tokens.
             timeout=Duration.minutes(5),
             memory_size=1024,
+            # Caps spend rate, not just load. See DEFAULT_AGENT_CONCURRENCY.
+            reserved_concurrent_executions=(
+                self.node.try_get_context("agent_concurrency") or DEFAULT_AGENT_CONCURRENCY
+            ),
             log_group=log_group,
             environment={
                 "TENANT": tenant.slug,

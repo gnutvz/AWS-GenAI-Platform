@@ -141,6 +141,53 @@ class TestAgentPermissions:
         )
 
 
+class TestSpendControls:
+    """The other kind of isolation: one tenant must not exhaust shared capacity.
+
+    IAM answers who may call. It says nothing about how often, and an authorised
+    client in a retry loop is indistinguishable from normal traffic until the
+    Bedrock invoice arrives.
+    """
+
+    def test_agent_concurrency_is_capped(self, synthesized):
+        for slug in ("acme", "globex"):
+            functions = synthesized[f"api-{slug}"].find_resources("AWS::Lambda::Function")
+            agents = [
+                fn
+                for fn in functions.values()
+                if fn["Properties"].get("Environment", {}).get("Variables", {}).get("TENANT")
+            ]
+            assert agents, f"no agent function found in api-{slug}"
+            for fn in agents:
+                limit = fn["Properties"].get("ReservedConcurrentExecutions")
+                assert limit, (
+                    "the agent function has no reserved concurrency, so one tenant can "
+                    "scale to the account limit and bill every token of it"
+                )
+
+    def test_the_cap_is_overridable_per_deployment(self):
+        """A default nobody can change gets removed rather than tuned."""
+        app = cdk.App(
+            context={"aws:cdk:bundling-stacks": [], "agent_concurrency": 42},
+        )
+        env = cdk.Environment(account="111111111111", region="us-west-2")
+        knowledge = KnowledgeStack(app, "K", env=env, tenant=ACME)
+        api = ApiStack(
+            app,
+            "A",
+            env=env,
+            tenant=ACME,
+            knowledge_base_id=knowledge.knowledge_base_id,
+            documents_bucket_name=knowledge.documents_bucket.bucket_name,
+            guardrail_id="gr-test",
+            guardrail_version="1",
+            model_id="test-model",
+        )
+        Template.from_stack(api).has_resource_properties(
+            "AWS::Lambda::Function", {"ReservedConcurrentExecutions": 42}
+        )
+
+
 class TestTagging:
     def test_resources_carry_the_tenant_tag(self, synthesized):
         """Cost reports and audits should answer 'whose is this?' without reading CDK."""

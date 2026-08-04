@@ -35,6 +35,17 @@ The version lives in `pyproject.toml` and is read at runtime as
   inside the Lambda timeout. Applied to model invocation (`boto_client_config`
   on `BedrockModel`), retrieval, and both ingest clients.
 
+- **The agent function had no concurrency cap.** The Function URL is
+  IAM-authenticated, which answers who may call but not how often. An authorised
+  client in a retry loop scaled straight to the account limit, and Bedrock bills
+  every token of it — a failure that looks like normal traffic until the invoice
+  arrives.
+
+  `reserved_concurrent_executions` now defaults to 10 per tenant, overridable
+  with `cdk deploy -c agent_concurrency=N`. Reserved concurrency is drawn from
+  the shared account pool, so the default does not scale to hundreds of tenants
+  unchanged; the comment in `api_stack.py` says so and names the two ways out.
+
 ### Added
 
 - `aiplat/aws.py` — retry and timeout policy for every AWS call.
