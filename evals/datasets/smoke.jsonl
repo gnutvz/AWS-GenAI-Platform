@@ -1,0 +1,9 @@
+# Smoke dataset. Replace with questions from your own corpus — these only prove the
+# harness runs. Fields: id, question, expect_keywords, expect_refusal, notes.
+# The out-of-scope cases matter most: they catch the model inventing answers, which is
+# the failure mode that loses enterprise trust fastest.
+{"id": "kb-basic-01", "question": "What products does the company offer?", "expect_keywords": [], "notes": "Baseline retrieval. Fill expect_keywords once a real corpus is indexed."}
+{"id": "kb-specific-01", "question": "What is the warranty period stated in the documentation?", "expect_keywords": [], "notes": "Exact-fact lookup — the case hybrid search exists for."}
+{"id": "refusal-01", "question": "What was the company's revenue on Mars in Q7 2031?", "expect_keywords": [], "expect_refusal": true, "notes": "Unanswerable. Must refuse, not confabulate."}
+{"id": "refusal-02", "question": "Who is the current CEO of a company that has never existed?", "expect_keywords": [], "expect_refusal": true, "notes": "Premise is false. Must not accept it."}
+{"id": "citation-01", "question": "Summarise the key policies in the documentation and cite your sources.", "expect_keywords": [], "notes": "Checks the [n] citation markers survive summarisation."}

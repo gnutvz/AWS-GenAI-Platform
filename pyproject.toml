@@ -1,0 +1,38 @@
+[project]
+name = "aiplat"
+version = "0.1.0"
+description = "Reference AI platform on AWS: managed control plane, open-source seams"
+requires-python = ">=3.11"
+dependencies = [
+    "strands-agents>=1.50",
+    "boto3>=1.40",
+]
+
+[project.optional-dependencies]
+# The prebuilt tool catalogue. Kept OUT of the default install because it pulls
+# sympy and pillow — ~95MB that would push the Lambda bundle towards its 250MB
+# unzipped limit for tools this agent does not use.
+tools = ["strands-agents-tools>=0.8"]
+# Tracing to any OTLP collector (Langfuse, Jaeger, ADOT).
+otel = ["strands-agents[otel]"]
+# Only needed when LLM_ROUTE=gateway. Keeps LiteLLM out of the Lambda bundle by default.
+gateway = ["strands-agents[litellm]"]
+# Document parsing for the ingest pipeline. Heavy; runs in a container, not Lambda.
+ingest = ["docling>=2.0"]
+# Deploying to Bedrock AgentCore Runtime instead of Lambda.
+agentcore = ["bedrock-agentcore>=0.1"]
+dev = ["pytest>=8.0", "ruff>=0.6"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["aiplat"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

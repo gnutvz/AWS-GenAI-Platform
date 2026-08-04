@@ -1,0 +1,13 @@
+.venv/
+__pycache__/
+*.py[cod]
+.env
+.pytest_cache/
+.ruff_cache/
+
+# CDK
+infra/cdk.out/
+infra/.cdk.staging/
+
+# Eval output is a build artifact; datasets are checked in, results are not.
+evals/results/
