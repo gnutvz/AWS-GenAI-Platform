@@ -8,6 +8,25 @@ The version lives in `pyproject.toml` and is read at runtime as
 
 ## [Unreleased]
 
+## [0.7.0] — 2026-08-05
+
+### Added
+
+- **`DETECT_VECTOR_FIGURES`** — treat clusters of lines and fills as figures, so a
+  schematic *drawn* rather than embedded becomes searchable. That is most drawings
+  in engineering PDFs, and every figure path until now was blind to them.
+
+  Off by default, and separately from `FIGURE_PROCESSOR` on purpose. Everything
+  else in the ingest path is extraction: a figure is in the file or it is not.
+  This is inference, and a wrong guess spends a model call *and* files a
+  description of a page border in the index as though it were content. Turning it
+  on is a decision about that trade, so it gets its own switch.
+
+  Implemented upstream in prismdoc v0.11.0, which rejects ruled tables, header and
+  footer rules, page borders, lone boxes, icon clusters and CAD-dense pages — each
+  with a test. The heuristic has no benchmark behind it: enable it on a sample and
+  read the counts before a large corpus.
+
 ## [0.6.1] — 2026-08-05
 
 ### Changed

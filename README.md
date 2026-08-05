@@ -241,10 +241,11 @@ the only stack here with a standing bill, which is why it is opt-in.
   describes each figure with `MODEL_ID` — the setting that makes drawings
   searchable, and one model call per figure, so it is a cost decision rather
   than a default.
-- **Vector diagrams are still invisible.** Figure extraction finds embedded
-  images, so a chart or schematic drawn as lines and fills has nothing to find.
-  Detecting those is a layout-clustering problem nobody has solved cheaply.
-  Embedded figures are covered in PDF, PPTX and DOCX; HTML is not.
+- **Vector diagram detection is a guess.** `DETECT_VECTOR_FIGURES` finds
+  schematics drawn as lines and fills by clustering page geometry. It rejects
+  tables, rules and borders, but it is inference with no benchmark behind it —
+  run it on a sample and read the counts first. Embedded figures are extracted
+  (not inferred) in PDF, PPTX and DOCX; HTML figures are not extracted at all.
 - **Langfuse here is v2** (Postgres only). v3 splits into web + worker and adds
   ClickHouse, Redis and S3.
 - **Nothing here has been deployed to a live account yet.** CI proves the code

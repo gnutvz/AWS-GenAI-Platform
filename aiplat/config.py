@@ -95,6 +95,12 @@ class Settings:
     # discovers that as an invoice rather than a decision.
     figure_processor: FigureProcessor
 
+    # Also treat clusters of lines and fills as figures — schematics drawn rather
+    # than embedded. Off by default because it is inference, not extraction: a
+    # wrong guess spends a model call and files a description of a page border in
+    # the index as though it were content.
+    detect_vector_figures: bool
+
     @property
     def tracing_enabled(self) -> bool:
         return self.otlp_endpoint is not None
@@ -141,4 +147,5 @@ def settings() -> Settings:
         service_name=_get("OTEL_SERVICE_NAME", "aiplat-agent"),
         prompt_version=_version("PROMPT_VERSION"),
         figure_processor=_choice("FIGURE_PROCESSOR", ("off", "ocr", "vlm"), "off"),
+        detect_vector_figures=_flag("DETECT_VECTOR_FIGURES"),
     )

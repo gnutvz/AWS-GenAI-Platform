@@ -72,7 +72,7 @@ def parse_to_markdown(path: Path) -> str:
     except ImportError as exc:
         raise SystemExit(_PRISMDOC_HINT) from exc
 
-    stages = [IngestStage(), ParseStage(parser=_parser())]
+    stages = [IngestStage(loaders=_loaders()), ParseStage(parser=_parser())]
 
     processor = _figure_processor()
     if processor is not None:
@@ -89,6 +89,27 @@ def parse_to_markdown(path: Path) -> str:
     document = Document(source=Source(path=str(path)))
     result = Pipeline(stages).run(document, Context())
     return result.artifacts.get("parsed_markdown", "")
+
+
+def _loaders():
+    """Default loaders, with the PDF one told whether to infer vector figures.
+
+    Only the PDF loader takes the flag: Office formats carry their pictures as
+    files, so there is nothing to infer there.
+    """
+    from prismdoc.pdf import PdfPlumberEngine
+    from prismdoc.stages.ingest import (
+        ImageLoader,
+        OfficeLoader,
+        PdfLoader,
+        TextLoader,
+        XlsxLoader,
+    )
+
+    engine = PdfPlumberEngine(
+        detect_vector_figures=settings().detect_vector_figures
+    )
+    return [PdfLoader(engine=engine), ImageLoader(), XlsxLoader(), OfficeLoader(), TextLoader()]
 
 
 def _parser():

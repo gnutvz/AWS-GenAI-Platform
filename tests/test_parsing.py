@@ -123,3 +123,31 @@ class TestFiguresReachTheMarkdown:
         markdown = parsing.parse_to_markdown(real_pdf)
 
         assert "Unit price 12.50 EUR" in markdown
+
+
+class TestVectorDetection:
+    """Inference, not extraction — so it has to be asked for."""
+
+    def test_off_by_default(self):
+        assert config.settings().detect_vector_figures is False
+
+    def test_the_pdf_loader_inherits_the_setting(self, monkeypatch):
+        monkeypatch.setenv("DETECT_VECTOR_FIGURES", "true")
+        config.settings.cache_clear()
+
+        pdf_loader = parsing._loaders()[0]
+
+        assert pdf_loader._engine.detect_vector_figures is True
+
+    def test_off_means_the_engine_is_told_off(self):
+        assert parsing._loaders()[0]._engine.detect_vector_figures is False
+
+    def test_every_format_still_has_a_loader(self):
+        """The custom loader list must not silently drop a format."""
+        from prismdoc.stages.ingest import IngestStage
+
+        covered = set()
+        for loader in parsing._loaders():
+            covered.update(ext.lower() for ext in loader.extensions)
+
+        assert covered == set(IngestStage()._by_extension)
