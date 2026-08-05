@@ -8,6 +8,32 @@ The version lives in `pyproject.toml` and is read at runtime as
 
 ## [Unreleased]
 
+## [0.6.0] — 2026-08-05
+
+### Changed
+
+- **All parsing belongs to prismdoc; this repo no longer routes by format.**
+  0.5.0 kept a docling branch here for DOCX, PPTX and HTML, because prismdoc had
+  no loader for them. That meant every format prismdoc gained or lost was a
+  change in this repo too — a consumer tracking another project's internals.
+
+  prismdoc v0.8.1 adds an `OfficeLoader`, so it now dispatches every supported
+  format itself. `parsing.py` hands it a file and takes Markdown. What stays here
+  is the one decision prismdoc cannot make: what a figure should *become*.
+
+- **Parser is `passthrough`, not `docling`.** Docling returns whole-document
+  Markdown with no page markers, and figure placement needs them — every figure
+  in a document was landing at the end rather than on its page, so a chunker
+  would pair a page-1 diagram with the last page's prose. Fixed upstream in
+  prismdoc v0.8.1 (`PdfPlumberParser` emits page markers, and the merge stage
+  warns when it cannot place); this repo picks the parser that preserves them.
+
+### Fixed
+
+- `.gif` was missing from `PARSEABLE`, so GIFs were never discovered even though
+  prismdoc reads them. Caught by a new test asserting that discovery and prismdoc
+  agree on the format list rather than drifting apart silently.
+
 ## [0.5.1] — 2026-08-05
 
 ### Fixed

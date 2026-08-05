@@ -45,39 +45,26 @@ def clean_env(monkeypatch):
     config.settings.cache_clear()
 
 
-class TestFormatRouting:
-    @pytest.mark.parametrize("suffix", [".md", ".txt"])
-    def test_plain_text_is_not_parsed_at_all(self, tmp_path, suffix):
-        """No parser is better than a parser: the file is already Markdown-ish."""
-        path = tmp_path / f"notes{suffix}"
-        path.write_text("# Heading\n\nBody text.", encoding="utf-8")
+prismdoc = pytest.importorskip("prismdoc", reason="needs the ingest extra")
 
-        assert parsing.parse_to_markdown(path) == "# Heading\n\nBody text."
 
-    @pytest.mark.parametrize("suffix", [".docx", ".pptx", ".html"])
-    def test_office_formats_go_to_docling(self, tmp_path, monkeypatch, suffix):
-        """prismdoc has no loader for these; routing them at it would fail."""
-        seen: list[Path] = []
-        monkeypatch.setattr(parsing, "_docling_markdown", lambda p: seen.append(p) or "md")
+class TestFormatCoverage:
+    """The platform no longer routes by format — prismdoc dispatches internally.
 
-        parsing.parse_to_markdown(tmp_path / f"deck{suffix}")
+    What is still the platform's business is that discovery and parsing agree:
+    `documents_under()` selects files by PARSEABLE, so a format listed here that
+    prismdoc cannot load becomes a failed document, and one prismdoc handles but
+    PARSEABLE omits is silently never ingested.
+    """
 
-        assert seen == [tmp_path / f"deck{suffix}"]
+    def test_declared_formats_match_what_prismdoc_loads(self):
+        from prismdoc.stages.ingest import IngestStage
 
-    @pytest.mark.parametrize("suffix", [".pdf", ".xlsx", ".png"])
-    def test_prismdoc_formats_go_to_prismdoc(self, tmp_path, monkeypatch, suffix):
-        seen: list[Path] = []
-        monkeypatch.setattr(parsing, "_prismdoc_markdown", lambda p: seen.append(p) or "md")
+        assert parsing.PARSEABLE == set(IngestStage()._by_extension)
 
-        parsing.parse_to_markdown(tmp_path / f"doc{suffix}")
-
-        assert seen == [tmp_path / f"doc{suffix}"]
-
-    def test_every_routed_format_is_declared_parseable(self):
-        """Ingest discovers files by PARSEABLE; a format it routes but does not
-        list would never reach the router at all."""
-        routed = parsing.PRISMDOC_FORMATS | parsing.PASSTHROUGH | parsing.DOCLING_ONLY
-        assert routed == parsing.PARSEABLE
+    def test_office_formats_are_covered(self):
+        """The split that used to force a second parsing stack in this repo."""
+        assert {".docx", ".pptx", ".html"} <= parsing.PARSEABLE
 
 
 class TestFigureProcessorSelection:

@@ -24,8 +24,8 @@ flowchart LR
 
 Two paths, deliberately separate:
 
-- **Write path** — `prismdoc` parses PDF/XLSX/images to Markdown locally (docling for
-  DOCX/PPTX/HTML), describes figures so diagrams are searchable, uploads to S3 with a
+- **Write path** — `prismdoc` parses every supported format to Markdown locally and
+  describes figures so diagrams are searchable, uploads to S3 with a
   metadata sidecar, then triggers a Knowledge Base ingestion job. Runs on a laptop or
   a container, never in Lambda (the parsers pull model weights).
 - **Read path** — the agent retrieves passages, reasons over them, and answers with

@@ -31,7 +31,7 @@ are not a platform yet.
 | Agent framework | Strands (open source, AWS-maintained) | Runs anywhere, *and* deploys to AgentCore Runtime. No fork in the road |
 | Vector store | S3 Vectors | Serverless. OpenSearch Serverless bills a standing OCU floor even at zero traffic |
 | Retrieval | Bedrock Knowledge Bases | Chunking, embedding and indexing are solved problems |
-| Document parsing | prismdoc + docling (both open source) | Parsing quality decides RAG quality — this is worth owning, and figures are part of the document |
+| Document parsing | [prismdoc](https://github.com/gnutvz/prismdoc) (open source) | Parsing quality decides RAG quality — this is worth owning, and figures are part of the document |
 | Safety | Bedrock Guardrails | Auditors want a policy artifact with a version number |
 | Tracing & eval | OpenTelemetry → Langfuse (self-hosted) | Traces and eval datasets are your asset; never hand them to a proprietary format |
 
@@ -45,7 +45,7 @@ aiplat/            shared library — config, model construction, tracing, retri
   knowledge.py     KB retrieval, exposed as a Strands tool
 services/
   agent/           agent.py (portable) + lambda_handler.py + agentcore_app.py
-  ingest/          prismdoc/docling → S3 → Knowledge Base sync
+  ingest/          prismdoc → S3 → Knowledge Base sync
 evals/             dataset + scoring harness
 infra/             CDK: knowledge, safety, api, observability
 ```
@@ -245,9 +245,9 @@ the only stack here with a standing bill, which is why it is opt-in.
   images. A chart or schematic drawn as lines and fills has no image to find, so
   no engine here sees it. Detecting those is a layout-clustering problem nobody
   has solved cheaply.
-- **Two parsing stacks.** prismdoc reads PDF, XLSX and images; DOCX, PPTX and
-  HTML go to docling, which prismdoc has no loader for. Not elegant, and
-  preferable to claiming one stack covers everything.
+- **Figure placement needs page structure.** Figures are merged back onto the
+  page they came from. DOCX, PPTX and HTML have no page concept, so their figures
+  land at the end of the document rather than in place.
 - **Langfuse here is v2** (Postgres only). v3 splits into web + worker and adds
   ClickHouse, Redis and S3.
 - **Nothing here has been deployed to a live account yet.** CI proves the code

@@ -1,32 +1,24 @@
-"""Document → Markdown, via prismdoc.
+"""Document → Markdown.
 
-Parsing quality decides retrieval quality, so this is the one part of the RAG
-pipeline worth owning rather than delegating to the knowledge base. What changed
-is *what* we own it with.
+Parsing quality decides retrieval quality, so it is worth owning — but owning it
+does not mean doing it here. prismdoc owns parsing: which engine reads which
+format, how tables are rendered, how figures are cut out and merged back. This
+module hands it a file and takes Markdown.
 
-Calling docling directly extracted text, headings and tables well and dropped
-everything else on the floor. Docling's enrichment features — picture
-description, picture classification, formula and code understanding — are all
-disabled by default, and nothing here turned them on. So a diagram, a chart, a
-screenshot or a photographed form became an empty placeholder in the Markdown:
-no text, no description, no warning. The document logged as ingested and the
-agent could never answer a question about the picture in it.
+That boundary is the point. An earlier version of this file knew that prismdoc
+could not load DOCX and routed those to docling itself, which meant every format
+prismdoc gained or lost was a change here too. Consumers should not have to track
+another project's internals to use it.
 
-prismdoc closes that, and the figure sub-pipeline is the reason to depend on it:
-figures are cut out of the page, described by a model, and merged back into the
-Markdown where they sat. A diagram becomes prose the retriever can index.
+What the platform still owns is the *decision* prismdoc cannot make for it: what
+a figure should become. `FIGURE_PROCESSOR` picks, and `BedrockFigureProcessor`
+describes figures with the model `aiplat.llm` already hands out — so the figure
+path inherits the configured route, region and credentials rather than growing a
+second way to reach a model.
 
-Two boundaries worth stating plainly:
-
-**prismdoc does not load every format.** It reads PDF, XLSX, images and plain
-text. DOCX, PPTX and HTML have no loader there, so those still go to docling
-directly. That split is not elegant, and it is honest: the alternative is
-pretending one stack covers everything.
-
-**Figure processing is off by default.** Describing every figure in a corpus
-means one model call per figure — on the 5,189-document benchmark corpus that is
-a real bill arriving without anyone choosing it. `FIGURE_PROCESSOR` is the
-choice, and `off` is what you get if you do not make it.
+Figures are off by default. Describing every figure in a corpus is one model call
+per figure, and a 5,189-document corpus should meet that as a decision rather
+than an invoice.
 """
 
 from __future__ import annotations
@@ -38,32 +30,33 @@ from aiplat.config import settings
 
 logger = logging.getLogger(__name__)
 
-# What prismdoc can load itself. Everything else falls through to docling.
-PRISMDOC_FORMATS = {".pdf", ".xlsx", ".png", ".jpg", ".jpeg", ".tif", ".tiff", ".bmp", ".webp"}
-PASSTHROUGH = {".md", ".txt"}
-DOCLING_ONLY = {".docx", ".pptx", ".html"}
-
-PARSEABLE = PRISMDOC_FORMATS | PASSTHROUGH | DOCLING_ONLY
+# Formats prismdoc's IngestStage accepts. Kept as a literal set rather than
+# imported from prismdoc so that discovery does not need the ingest extra
+# installed — `documents_under()` runs wherever the CLI does.
+PARSEABLE = {
+    ".pdf",
+    ".docx",
+    ".pptx",
+    ".html",
+    ".htm",
+    ".xlsx",
+    ".md",
+    ".txt",
+    ".png",
+    ".jpg",
+    ".jpeg",
+    ".tif",
+    ".tiff",
+    ".bmp",
+    ".webp",
+    ".gif",
+}
 
 _PRISMDOC_HINT = "prismdoc is not installed. Run: pip install -e '.[ingest]'"
-_DOCLING_HINT = "docling is not installed. Run: pip install -e '.[ingest]'"
 
 
 def parse_to_markdown(path: Path) -> str:
     """Convert one document to Markdown, preserving tables and figures."""
-    suffix = path.suffix.lower()
-
-    if suffix in PASSTHROUGH:
-        return path.read_text(encoding="utf-8", errors="replace")
-
-    if suffix in DOCLING_ONLY:
-        return _docling_markdown(path)
-
-    return _prismdoc_markdown(path)
-
-
-def _prismdoc_markdown(path: Path) -> str:
-    """Run the prismdoc pipeline: parse, then extract/describe/merge figures."""
     try:
         from prismdoc import (
             Context,
@@ -79,14 +72,14 @@ def _prismdoc_markdown(path: Path) -> str:
     except ImportError as exc:
         raise SystemExit(_PRISMDOC_HINT) from exc
 
-    stages = [IngestStage(), ParseStage(parser=_best_parser())]
+    stages = [IngestStage(), ParseStage(parser=_parser())]
 
     processor = _figure_processor()
     if processor is not None:
-        # Extract cuts figures out and leaves a placeholder token; process turns
-        # each into text; merge substitutes the text back where the figure sat.
-        # Splitting it three ways is what lets the description come from a model
-        # this package knows nothing about.
+        # Three stages rather than one: extract cuts figures out and leaves a
+        # placeholder, process turns each into text, merge substitutes it back
+        # where the figure sat. The split is what lets the description come from
+        # a model prismdoc knows nothing about.
         stages += [
             FigureExtractStage(),
             FigureProcessStage(processor=processor),
@@ -98,22 +91,18 @@ def _prismdoc_markdown(path: Path) -> str:
     return result.artifacts.get("parsed_markdown", "")
 
 
-def _best_parser():
-    """Docling when it is installed, pdfplumber otherwise.
+def _parser():
+    """Passthrough: let each loader's own reader produce the text.
 
-    Docling runs a layout model and reads borderless and scanned tables that
-    pdfplumber's line-based detection misses. pdfplumber is the permissive
-    fallback that keeps a lighter install working rather than failing — for
-    born-digital PDFs with ruled tables the gap is small.
+    Not `parser.docling`, which would re-convert the file and discard what the
+    loader already did — and, more importantly, returns whole-document Markdown
+    with no page markers, which strands every figure at the end of the document
+    instead of on its page. Passthrough keeps prismdoc's per-page structure,
+    which figure placement depends on.
     """
     from prismdoc import registry
 
-    try:
-        import docling  # noqa: F401
-    except ImportError:
-        logger.info("docling not installed; parsing PDFs with pdfplumber")
-        return registry.create("parser.pdfplumber")
-    return registry.create("parser.docling")
+    return registry.create("parser.passthrough")
 
 
 def _figure_processor():
@@ -134,13 +123,3 @@ def _figure_processor():
     from services.ingest.figures import BedrockFigureProcessor
 
     return BedrockFigureProcessor()
-
-
-def _docling_markdown(path: Path) -> str:
-    """Formats prismdoc has no loader for."""
-    try:
-        from docling.document_converter import DocumentConverter
-    except ImportError as exc:
-        raise SystemExit(_DOCLING_HINT) from exc
-
-    return DocumentConverter().convert(str(path)).document.export_to_markdown()
