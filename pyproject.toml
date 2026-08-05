@@ -1,6 +1,6 @@
 [project]
 name = "aiplat"
-version = "0.6.0"
+version = "0.6.1"
 description = "Reference AI platform on AWS: managed control plane, open-source seams"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -36,7 +36,7 @@ gateway = ["strands-agents[litellm]"]
 # `make licenses` refuses and rightly so. Switch to `prismdoc>=0.8` once it
 # publishes.
 ingest = [
-    "prismdoc @ git+https://github.com/gnutvz/prismdoc@v0.8.1",
+    "prismdoc @ git+https://github.com/gnutvz/prismdoc@v0.10.0",
     "docling>=2.0",
 ]
 # Deploying to Bedrock AgentCore Runtime instead of Lambda.

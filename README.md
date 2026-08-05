@@ -242,12 +242,9 @@ the only stack here with a standing bill, which is why it is opt-in.
   searchable, and one model call per figure, so it is a cost decision rather
   than a default.
 - **Vector diagrams are still invisible.** Figure extraction finds embedded
-  images. A chart or schematic drawn as lines and fills has no image to find, so
-  no engine here sees it. Detecting those is a layout-clustering problem nobody
-  has solved cheaply.
-- **Figure placement needs page structure.** Figures are merged back onto the
-  page they came from. DOCX, PPTX and HTML have no page concept, so their figures
-  land at the end of the document rather than in place.
+  images, so a chart or schematic drawn as lines and fills has nothing to find.
+  Detecting those is a layout-clustering problem nobody has solved cheaply.
+  Embedded figures are covered in PDF, PPTX and DOCX; HTML is not.
 - **Langfuse here is v2** (Postgres only). v3 splits into web + worker and adds
   ClickHouse, Redis and S3.
 - **Nothing here has been deployed to a live account yet.** CI proves the code

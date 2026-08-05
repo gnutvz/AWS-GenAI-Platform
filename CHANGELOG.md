@@ -8,6 +8,21 @@ The version lives in `pyproject.toml` and is read at runtime as
 
 ## [Unreleased]
 
+## [0.6.1] — 2026-08-05
+
+### Changed
+
+- Pinned to prismdoc v0.10.0, which extracts figures from **PPTX and DOCX**, not
+  just PDF. Slide decks were the worst case before this: a deck's meaning lives in
+  its diagrams, so a forty-slide architecture review ingested as text alone left
+  forty titles and nothing to retrieve — and it failed silently, since the deck
+  looked ingested.
+
+  Office figures are placed exactly, better than the PDF path manages. Docling
+  marks each picture's position in the Markdown and prismdoc yields pictures in
+  that same order, so a description is substituted where its picture sat instead
+  of being appended per page.
+
 ## [0.6.0] — 2026-08-05
 
 ### Changed
