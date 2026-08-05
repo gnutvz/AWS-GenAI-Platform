@@ -8,6 +8,21 @@ The version lives in `pyproject.toml` and is read at runtime as
 
 ## [Unreleased]
 
+## [0.5.1] — 2026-08-05
+
+### Fixed
+
+- **The `ingest` extra was uninstallable.** 0.5.0 declared `prismdoc>=0.8`, but
+  prismdoc is not published to PyPI at all — so `pip install -e '.[ingest]'`
+  failed to resolve. It went unnoticed because the development install came from
+  a local path.
+
+  Pinned to `prismdoc @ git+https://github.com/gnutvz/prismdoc@v0.8.0`. The tag
+  is load-bearing rather than cosmetic: v0.8.0 is the first prismdoc release
+  whose core dependencies are permissive — before it, prismdoc carried PyMuPDF
+  (AGPL-3.0), which `make licenses` refuses. Verified by installing the ref into
+  a clean environment: prismdoc 0.8.0, no PyMuPDF, permissive engine by default.
+
 ## [0.5.0] — 2026-08-05
 
 Ingest now runs on [prismdoc](https://github.com/gnutvz/prismdoc), which closes

@@ -1,6 +1,6 @@
 [project]
 name = "aiplat"
-version = "0.5.0"
+version = "0.5.1"
 description = "Reference AI platform on AWS: managed control plane, open-source seams"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -30,9 +30,15 @@ gateway = ["strands-agents[litellm]"]
 # placeholders. docling stays because prismdoc has no loader for DOCX, PPTX or
 # HTML, and because its layout model reads tables pdfplumber misses.
 #
-# prismdoc >=0.8 specifically: earlier versions carry PyMuPDF (AGPL-3.0) as a
-# core dependency, which `make licenses` refuses and rightly so.
-ingest = ["prismdoc>=0.8", "docling>=2.0"]
+# Pinned to a git tag rather than a version range because prismdoc is not on
+# PyPI. The tag matters: v0.8.0 is the first release whose core dependencies are
+# permissive — before it, prismdoc carried PyMuPDF (AGPL-3.0), which
+# `make licenses` refuses and rightly so. Switch to `prismdoc>=0.8` once it
+# publishes.
+ingest = [
+    "prismdoc @ git+https://github.com/gnutvz/prismdoc@v0.8.0",
+    "docling>=2.0",
+]
 # Deploying to Bedrock AgentCore Runtime instead of Lambda.
 agentcore = ["bedrock-agentcore>=0.1"]
 # Local chat UI. Not in the Lambda bundle — the agent serves an API; the UI is a
