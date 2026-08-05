@@ -26,3 +26,6 @@ evals/corpus/
 .$*.drawio.bkp
 *.drawio.bkp
 *.drawio.dtmp
+
+# macOS Finder metadata
+.DS_Store
