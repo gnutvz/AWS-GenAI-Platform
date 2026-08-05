@@ -14,6 +14,7 @@ from functools import lru_cache
 from typing import Literal
 
 LlmRoute = Literal["bedrock", "gateway"]
+FigureProcessor = Literal["off", "ocr", "vlm"]
 
 DEFAULT_MODEL_ID = "global.anthropic.claude-sonnet-4-6"
 
@@ -30,6 +31,18 @@ def _optional(name: str) -> str | None:
 def _flag(name: str) -> bool:
     """Anything other than an explicit yes is a no."""
     return _get(name).lower() in ("1", "true", "yes", "on")
+
+
+def _choice(name: str, allowed: tuple[str, ...], default: str) -> str:
+    """One of a fixed set, or a loud failure.
+
+    A typo here would otherwise silently select the default — which for
+    FIGURE_PROCESSOR means an ingest run that quietly indexes no figures at all.
+    """
+    value = _get(name).lower() or default
+    if value not in allowed:
+        raise RuntimeError(f"{name} must be one of {', '.join(allowed)}, got {value!r}")
+    return value
 
 
 def _version(name: str) -> int | None:
@@ -77,6 +90,11 @@ class Settings:
     # not be the same act as shipping it.
     prompt_version: int | None
 
+    # How figures in ingested documents become searchable text: off | ocr | vlm.
+    # Off by default because `vlm` is one model call per figure, and a corpus
+    # discovers that as an invoice rather than a decision.
+    figure_processor: FigureProcessor
+
     @property
     def tracing_enabled(self) -> bool:
         return self.otlp_endpoint is not None
@@ -122,4 +140,5 @@ def settings() -> Settings:
         otlp_endpoint=_optional("OTEL_EXPORTER_OTLP_ENDPOINT"),
         service_name=_get("OTEL_SERVICE_NAME", "aiplat-agent"),
         prompt_version=_version("PROMPT_VERSION"),
+        figure_processor=_choice("FIGURE_PROCESSOR", ("off", "ocr", "vlm"), "off"),
     )

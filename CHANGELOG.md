@@ -8,6 +8,53 @@ The version lives in `pyproject.toml` and is read at runtime as
 
 ## [Unreleased]
 
+## [0.5.0] — 2026-08-05
+
+Ingest now runs on [prismdoc](https://github.com/gnutvz/prismdoc), which closes
+the gap that mattered most: **figures in documents were never indexed at all.**
+
+### Fixed
+
+- **Diagrams, charts and screenshots were silently dropped.** `parse_to_markdown`
+  called docling with default options, and docling disables every enrichment by
+  default — picture description, picture classification, formula and code
+  understanding. So a figure became an empty placeholder in the Markdown: no
+  text, no description, no warning. The document logged as ingested, the corpus
+  looked complete, and the agent could not answer a question about anything drawn
+  rather than written.
+
+  prismdoc cuts each figure out of the page, a processor turns it into text, and
+  the text is merged back where the figure sat. `FIGURE_PROCESSOR` chooses how:
+  `off` (default), `ocr` (reads text printed inside the figure, local and free),
+  or `vlm` (describes it with `MODEL_ID`).
+
+  Default `off` on purpose: `vlm` is one model call per figure, and a 5,189-document
+  corpus should discover that as a decision rather than an invoice.
+
+### Added
+
+- `services/ingest/parsing.py` — owns document → Markdown and the routing between
+  the two parsing stacks.
+- `services/ingest/figures.py` — `BedrockFigureProcessor` describes a figure with
+  the model `aiplat.llm` already hands out, so the figure path inherits the
+  configured route, region and credentials instead of growing a second way to
+  reach a model. The prompt targets retrieval, not prose: name the entities and
+  relationships, transcribe tables and labels, and return `NO INFORMATION` for a
+  decorative logo rather than writing a confident paragraph about it.
+- `FIGURE_PROCESSOR` setting, validated against its allowed values — a typo fails
+  at startup rather than silently indexing no figures.
+- `tests/fixtures/page_with_figure.pdf` — a committed 5KB PDF, so the figure path
+  is tested on a real document rather than a mock of the library doing the work.
+
+### Changed
+
+- The `ingest` extra is `prismdoc>=0.8` plus docling. prismdoc drives the
+  pipeline; docling stays for DOCX, PPTX and HTML, which prismdoc has no loader
+  for, and because its layout model reads tables pdfplumber misses.
+
+  The version floor is load-bearing: prismdoc before 0.8 carries PyMuPDF
+  (AGPL-3.0) as a core dependency, which `make licenses` refuses and rightly so.
+
 ## [0.4.1] — 2026-08-04
 
 Two ingest defects that only show up on a real corpus — the benchmark corpus is

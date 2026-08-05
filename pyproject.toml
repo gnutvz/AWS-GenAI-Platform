@@ -1,6 +1,6 @@
 [project]
 name = "aiplat"
-version = "0.4.1"
+version = "0.5.0"
 description = "Reference AI platform on AWS: managed control plane, open-source seams"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -24,7 +24,15 @@ otel = ["strands-agents[otel]"]
 # Only needed when LLM_ROUTE=gateway. Keeps LiteLLM out of the Lambda bundle by default.
 gateway = ["strands-agents[litellm]"]
 # Document parsing for the ingest pipeline. Heavy; runs in a container, not Lambda.
-ingest = ["docling>=2.0"]
+#
+# prismdoc drives the pipeline and is what makes figures searchable — docling on
+# its own has every enrichment disabled by default, so diagrams became empty
+# placeholders. docling stays because prismdoc has no loader for DOCX, PPTX or
+# HTML, and because its layout model reads tables pdfplumber misses.
+#
+# prismdoc >=0.8 specifically: earlier versions carry PyMuPDF (AGPL-3.0) as a
+# core dependency, which `make licenses` refuses and rightly so.
+ingest = ["prismdoc>=0.8", "docling>=2.0"]
 # Deploying to Bedrock AgentCore Runtime instead of Lambda.
 agentcore = ["bedrock-agentcore>=0.1"]
 # Local chat UI. Not in the Lambda bundle — the agent serves an API; the UI is a

@@ -31,7 +31,7 @@ are not a platform yet.
 | Agent framework | Strands (open source, AWS-maintained) | Runs anywhere, *and* deploys to AgentCore Runtime. No fork in the road |
 | Vector store | S3 Vectors | Serverless. OpenSearch Serverless bills a standing OCU floor even at zero traffic |
 | Retrieval | Bedrock Knowledge Bases | Chunking, embedding and indexing are solved problems |
-| Document parsing | docling (open source) | Parsing quality decides RAG quality — this is worth owning |
+| Document parsing | prismdoc + docling (both open source) | Parsing quality decides RAG quality — this is worth owning, and figures are part of the document |
 | Safety | Bedrock Guardrails | Auditors want a policy artifact with a version number |
 | Tracing & eval | OpenTelemetry → Langfuse (self-hosted) | Traces and eval datasets are your asset; never hand them to a proprietary format |
 
@@ -45,7 +45,7 @@ aiplat/            shared library — config, model construction, tracing, retri
   knowledge.py     KB retrieval, exposed as a Strands tool
 services/
   agent/           agent.py (portable) + lambda_handler.py + agentcore_app.py
-  ingest/          docling → S3 → Knowledge Base sync
+  ingest/          prismdoc/docling → S3 → Knowledge Base sync
 evals/             dataset + scoring harness
 infra/             CDK: knowledge, safety, api, observability
 ```
@@ -110,7 +110,7 @@ CloudFormation.
 **4. Load a corpus and ask something:**
 
 ```bash
-make image-ingest                                  # docling is too heavy for Lambda
+make image-ingest                                  # the parsers are too heavy for Lambda
 docker run --rm -v ~/.aws:/root/.aws:ro -v "$PWD/your-docs:/data:ro" \
   -e AWS_REGION -e DOCUMENTS_BUCKET -e KNOWLEDGE_BASE_ID \
   aiplat-ingest /data --wait
@@ -236,6 +236,18 @@ the only stack here with a standing bill, which is why it is opt-in.
 - **The corpus is synthetic.** EnterpriseRAG-Bench models a fictional company. It has
   realistic structure and noise, but it is not your documents — treat a good score as
   "the pipeline works", not "this will work on our data".
+- **Figures are only indexed if you ask.** `FIGURE_PROCESSOR` defaults to `off`,
+  which means a diagram in a document contributes nothing to retrieval. `vlm`
+  describes each figure with `MODEL_ID` — the setting that makes drawings
+  searchable, and one model call per figure, so it is a cost decision rather
+  than a default.
+- **Vector diagrams are still invisible.** Figure extraction finds embedded
+  images. A chart or schematic drawn as lines and fills has no image to find, so
+  no engine here sees it. Detecting those is a layout-clustering problem nobody
+  has solved cheaply.
+- **Two parsing stacks.** prismdoc reads PDF, XLSX and images; DOCX, PPTX and
+  HTML go to docling, which prismdoc has no loader for. Not elegant, and
+  preferable to claiming one stack covers everything.
 - **Langfuse here is v2** (Postgres only). v3 splits into web + worker and adds
   ClickHouse, Redis and S3.
 - **Nothing here has been deployed to a live account yet.** CI proves the code

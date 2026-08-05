@@ -2,12 +2,16 @@
 
 Parsing is the one part of RAG worth owning. Bedrock KB will happily ingest a raw
 PDF, but its built-in extraction flattens tables and loses heading structure — and
-in enterprise documents the tables usually *are* the answer. So docling does the
-PDF/DOCX -> Markdown conversion here, and the KB only handles chunking, embedding
-and indexing.
+in enterprise documents the tables usually *are* the answer. So the conversion to
+Markdown happens here, and the KB only handles chunking, embedding and indexing.
 
-Runs as a container or locally, never in Lambda: docling pulls model weights and
-blows the deployment package limit.
+How that conversion works — and why figures are no longer silently dropped — is
+in `services/ingest/parsing.py`. This module owns the parts around it: which
+documents are eligible, what metadata they must carry, where they land in S3, and
+what happens when one of them cannot be read.
+
+Runs as a container or locally, never in Lambda: the parsers pull model weights
+and blow the deployment package limit.
 
     pip install 'aiplat[ingest]'
     python -m services.ingest.ingest --tenant acme --wait     # sources from YAML
@@ -30,26 +34,13 @@ import boto3
 from aiplat.aws import boto_config
 from aiplat.config import settings
 from aiplat.tenants import get as get_tenant
+from services.ingest.parsing import PARSEABLE as PARSEABLE_FORMATS
+from services.ingest.parsing import parse_to_markdown
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
 logger = logging.getLogger(__name__)
 
-PARSEABLE = {".pdf", ".docx", ".pptx", ".xlsx", ".html", ".md", ".txt"}
-PASSTHROUGH = {".md", ".txt"}
-
-
-def parse_to_markdown(path: Path) -> str:
-    """Convert a document to Markdown, preserving tables and heading structure."""
-    if path.suffix.lower() in PASSTHROUGH:
-        return path.read_text(encoding="utf-8", errors="replace")
-
-    try:
-        from docling.document_converter import DocumentConverter
-    except ImportError:
-        raise SystemExit("docling not installed. Run: pip install 'aiplat[ingest]'")
-
-    result = DocumentConverter().convert(str(path))
-    return result.document.export_to_markdown()
+PARSEABLE = PARSEABLE_FORMATS
 
 
 def read_document_metadata(path: Path) -> dict:

@@ -34,7 +34,7 @@
         <mxCell id="w1" parent="wband" style="rounded=1;fillColor=#FFFFFF;strokeColor=#666666;fontSize=11;" value="Documents&#xa;PDF / DOCX / MD" vertex="1">
           <mxGeometry height="60" width="150" x="30" y="60" as="geometry" />
         </mxCell>
-        <mxCell id="w2" parent="wband" style="rounded=1;fillColor=#D5E8D4;strokeColor=#82B366;fontSize=11;" value="Parse&#xa;docling" vertex="1">
+        <mxCell id="w2" parent="wband" style="rounded=1;fillColor=#D5E8D4;strokeColor=#82B366;fontSize=11;" value="Parse&#xa;prismdoc" vertex="1">
           <mxGeometry height="60" width="150" x="220" y="60" as="geometry" />
         </mxCell>
         <mxCell id="w3" parent="wband" style="rounded=1;fillColor=#FFF2CC;strokeColor=#D6B656;fontSize=11;" value="Metadata gate&#xa;require_metadata" vertex="1">
@@ -219,10 +219,10 @@
         <mxCell id="i1" value="1 · Source&#xa;&#xa;PDF, DOCX, PPTX, XLSX, MD, TXT" style="rounded=1;fillColor=#FFFFFF;strokeColor=#666666;fontSize=11;verticalAlign=top;spacingTop=6;" vertex="1" parent="1">
           <mxGeometry x="60" y="110" width="230" height="80" as="geometry" />
         </mxCell>
-        <mxCell id="i2" value="2 · Parse to Markdown&#xa;&#xa;docling — keeps tables and heading structure" style="rounded=1;fillColor=#D5E8D4;strokeColor=#82B366;fontSize=11;verticalAlign=top;spacingTop=6;" vertex="1" parent="1">
+        <mxCell id="i2" value="2 · Parse to Markdown&#xa;&#xa;prismdoc — tables, heading structure, and figures" style="rounded=1;fillColor=#D5E8D4;strokeColor=#82B366;fontSize=11;verticalAlign=top;spacingTop=6;" vertex="1" parent="1">
           <mxGeometry x="60" y="220" width="230" height="80" as="geometry" />
         </mxCell>
-        <mxCell id="i2n" value="Bedrock can ingest a raw PDF, but its extraction flattens tables — and in enterprise documents the table often IS the answer. Parsing is the one part of RAG worth owning." style="text;html=1;fontSize=10;fontColor=#333333;align=left;verticalAlign=top;" vertex="1" parent="1">
+        <mxCell id="i2n" value="Bedrock can ingest a raw PDF, but its extraction flattens tables — and in enterprise documents the table often IS the answer. Parsing is the one part of RAG worth owning. Figures go the same way: a diagram left as an empty placeholder is a question the agent can never answer, so prismdoc cuts each one out and a model describes it back into the text." style="text;html=1;fontSize=10;fontColor=#333333;align=left;verticalAlign=top;" vertex="1" parent="1">
           <mxGeometry x="320" y="220" width="330" height="80" as="geometry" />
         </mxCell>
         <mxCell id="i3" value="3 · Metadata gate&#xa;&#xa;require_metadata from tenant config" style="rounded=1;fillColor=#FFF2CC;strokeColor=#D6B656;fontSize=11;verticalAlign=top;spacingTop=6;" vertex="1" parent="1">

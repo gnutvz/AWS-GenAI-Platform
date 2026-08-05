@@ -18,15 +18,16 @@ flowchart LR
     KB --> VS[(S3 Vectors)]
     KB --> DOC[(S3<br/>documents)]
 
-    ING[Ingest<br/>docling] --> DOC
+    ING[Ingest<br/>prismdoc] --> DOC
     ING -->|StartIngestionJob| KB
 ```
 
 Two paths, deliberately separate:
 
-- **Write path** — `docling` parses PDF/DOCX to Markdown locally, uploads to S3 with a
+- **Write path** — `prismdoc` parses PDF/XLSX/images to Markdown locally (docling for
+  DOCX/PPTX/HTML), describes figures so diagrams are searchable, uploads to S3 with a
   metadata sidecar, then triggers a Knowledge Base ingestion job. Runs on a laptop or
-  a container, never in Lambda (docling pulls model weights).
+  a container, never in Lambda (the parsers pull model weights).
 - **Read path** — the agent retrieves passages, reasons over them, and answers with
   `[n]` citations. Every model call and tool call emits an OTLP span.
 
