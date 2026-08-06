@@ -18,31 +18,18 @@ import os
 import sys
 import urllib.error
 import urllib.request
-from pathlib import Path
 
 import boto3
 from botocore.auth import SigV4Auth
 from botocore.awsrequest import AWSRequest
 
+# Importing aiplat loads .env into the environment, which boto3 then reads for
+# credentials and region. Kept as an explicit import so the reason is visible.
+import aiplat  # noqa: F401
+
 # Function URLs are signed against the Lambda service, not "execute-api".
 SERVICE = "lambda"
 TIMEOUT_SECONDS = 300
-
-
-def load_dotenv(path: Path = Path(".env")) -> None:
-    """Minimal .env reader so the script works right after `cdk deploy`.
-
-    Deliberately not python-dotenv: this is the only place that needs it, and a
-    dev-only convenience shouldn't add a dependency to the Lambda bundle.
-    """
-    if not path.exists():
-        return
-    for line in path.read_text(encoding="utf-8").splitlines():
-        line = line.strip()
-        if not line or line.startswith("#") or "=" not in line:
-            continue
-        key, value = line.split("=", 1)
-        os.environ.setdefault(key.strip(), value.strip())
 
 
 def sign(url: str, payload: dict, region: str) -> AWSRequest:
@@ -90,7 +77,6 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--json", action="store_true", help="Print the raw response")
     args = parser.parse_args(argv)
 
-    load_dotenv()
     url = args.url or os.environ.get("AGENT_FUNCTION_URL", "").strip()
     if not url:
         raise SystemExit(

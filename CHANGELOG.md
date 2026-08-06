@@ -8,6 +8,35 @@ The version lives in `pyproject.toml` and is read at runtime as
 
 ## [Unreleased]
 
+## [0.9.0] — 2026-08-06
+
+For the case where someone else owns the AWS account: they deploy, fill in one
+file, and hand it back. Two real bugs surfaced while testing that path.
+
+### Fixed
+
+- **`.env` only reached `make ask`.** It was loaded in `scripts/ask.py` alone, so
+  a machine configured entirely through `.env` could question the deployed agent
+  and then fail at `make ingest`, `make eval` and `make chat` — each reporting a
+  missing setting rather than a file nobody read. Loading moved to
+  `aiplat/config.py`, which already owns reading the environment, so every entry
+  point gets it.
+
+- **A blank value beat its default.** `os.environ.get(name, default)` returns `""`
+  for a variable that exists and is empty, so `MODEL_ID=` in a `.env` produced an
+  agent with no model id, and `PROMPT_NAME=` resolved the prompt path to the
+  prompts *directory* rather than a prompt. Both failed far from the blank line
+  that caused them — and a handover file that tells someone to leave optional
+  fields blank is exactly how a key comes to exist with no value.
+
+### Added
+
+- **`docs/handover.env.template`** — every value the application needs from AWS,
+  with the CloudFormation output name or CLI command for each. Filled in by
+  whoever deployed, saved as `.env` by whoever runs it. `handover.env` is now
+  git-ignored too, since a filled copy carries live credentials and tends to
+  arrive under the name it was sent as.
+
 ## [0.8.3] — 2026-08-06
 
 ### Fixed

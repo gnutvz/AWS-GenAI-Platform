@@ -4,6 +4,12 @@ Every value comes from the environment. In Lambda that environment is populated
 by CDK; locally it comes from .env. Nothing reads os.environ outside this module,
 so swapping in SSM/Secrets Manager later is one change here rather than a grep
 across the codebase.
+
+Loading .env happens here, on import, for the same reason. It used to live in
+`scripts/ask.py` alone, which meant `make ask` read the file and `make ingest`,
+`make eval` and `make chat` did not — so a machine configured entirely through
+.env could ask the deployed agent and fail at everything else, with an error
+about a missing setting rather than a missing file.
 """
 
 from __future__ import annotations
@@ -11,6 +17,7 @@ from __future__ import annotations
 import os
 from dataclasses import dataclass
 from functools import lru_cache
+from pathlib import Path
 from typing import Literal
 
 LlmRoute = Literal["bedrock", "gateway"]
@@ -19,8 +26,45 @@ FigureProcessor = Literal["off", "ocr", "vlm"]
 DEFAULT_MODEL_ID = "global.anthropic.claude-sonnet-4-6"
 
 
+def load_dotenv(path: Path | None = None) -> None:
+    """Read a .env file into the process environment, if one is there.
+
+    Deliberately not python-dotenv: this is a dev convenience, and the Lambda
+    bundle should not carry a dependency for a file that never exists there.
+
+    `setdefault`, so a real environment variable always beats the file. That is
+    what lets `AWS_PROFILE=other make eval` do what it looks like it does, and
+    what stops a stale .env quietly overriding a deliberate export.
+    """
+    path = path or Path(".env")
+    if not path.exists():
+        return
+
+    for line in path.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, value = line.split("=", 1)
+        # Strip quotes: a value pasted from a console often arrives wrapped, and
+        # an ARN with a leading quote fails much later and much less clearly.
+        os.environ.setdefault(key.strip(), value.strip().strip("\"'"))
+
+
+# On import rather than inside settings(): boto3 clients elsewhere read
+# credentials straight from os.environ, and they must find what .env supplied.
+load_dotenv()
+
+
 def _get(name: str, default: str = "") -> str:
-    return os.environ.get(name, default).strip()
+    """A setting, where blank means absent.
+
+    `os.environ.get(name, default)` returns "" for a variable that exists and is
+    empty, so `MODEL_ID=` in a .env file silently beat the default and the agent
+    was constructed with no model id at all. That is not a hypothetical: the
+    handover template hands someone a file and tells them to leave optional
+    fields blank, which is precisely how a key comes to exist with no value.
+    """
+    return os.environ.get(name, "").strip() or default
 
 
 def _optional(name: str) -> str | None:

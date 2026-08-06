@@ -9,6 +9,7 @@ the eval suite, not here.
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 from typing import ClassVar
 
@@ -172,3 +173,102 @@ class TestBenchmarkConversion:
         assert len(loaded) == 2
         assert loaded[0].needs_judge is True
         assert loaded[1].expect_refusal is True
+
+
+class TestBlankMeansAbsent:
+    """A variable that exists and is empty must not beat its default.
+
+    The handover template hands someone a file and tells them to leave optional
+    fields blank, which is exactly how `MODEL_ID=` comes to exist with no value.
+    Before this, that produced an agent built with no model id and a prompt path
+    resolving to the prompts *directory* rather than a prompt — both failing far
+    from the blank line that caused them.
+    """
+
+    @pytest.fixture(autouse=True)
+    def clean(self, monkeypatch):
+        monkeypatch.setenv("AWS_REGION", "us-west-2")
+        config.settings.cache_clear()
+        yield
+        config.settings.cache_clear()
+
+    def test_blank_model_id_falls_back_to_the_default(self, monkeypatch):
+        monkeypatch.setenv("MODEL_ID", "")
+        config.settings.cache_clear()
+
+        assert config.settings().model_id == config.DEFAULT_MODEL_ID
+
+    def test_blank_prompt_name_falls_back_to_system(self, monkeypatch):
+        monkeypatch.setenv("PROMPT_NAME", "")
+        config.settings.cache_clear()
+
+        assert config.settings().prompt_name == "system"
+
+    def test_blank_llm_route_falls_back_to_bedrock(self, monkeypatch):
+        monkeypatch.setenv("LLM_ROUTE", "")
+        config.settings.cache_clear()
+
+        assert config.settings().llm_route == "bedrock"
+
+    def test_whitespace_only_counts_as_blank(self, monkeypatch):
+        monkeypatch.setenv("MODEL_ID", "   ")
+        config.settings.cache_clear()
+
+        assert config.settings().model_id == config.DEFAULT_MODEL_ID
+
+    def test_a_real_value_still_wins(self, monkeypatch):
+        monkeypatch.setenv("MODEL_ID", "some-other-model")
+        config.settings.cache_clear()
+
+        assert config.settings().model_id == "some-other-model"
+
+
+class TestDotenvLoading:
+    """`.env` has to reach every entry point, not just `make ask`.
+
+    It was loaded in scripts/ask.py alone, so a machine configured entirely
+    through .env could ask the deployed agent and fail at ingest, eval and the
+    chat UI — reporting a missing setting rather than a file nobody read.
+    """
+
+    def test_values_are_read_from_the_file(self, tmp_path, monkeypatch):
+        env = tmp_path / ".env"
+        env.write_text("KNOWLEDGE_BASE_ID=kb-from-file\n", encoding="utf-8")
+        monkeypatch.delenv("KNOWLEDGE_BASE_ID", raising=False)
+
+        config.load_dotenv(env)
+
+        assert os.environ["KNOWLEDGE_BASE_ID"] == "kb-from-file"
+
+    def test_a_real_environment_variable_wins(self, tmp_path, monkeypatch):
+        """`AWS_PROFILE=other make eval` must do what it looks like it does."""
+        env = tmp_path / ".env"
+        env.write_text("TENANT=from-file\n", encoding="utf-8")
+        monkeypatch.setenv("TENANT", "from-shell")
+
+        config.load_dotenv(env)
+
+        assert os.environ["TENANT"] == "from-shell"
+
+    def test_quotes_are_stripped(self, tmp_path, monkeypatch):
+        """Values pasted from a console often arrive wrapped."""
+        env = tmp_path / ".env"
+        env.write_text('MODEL_ID="global.anthropic.claude-sonnet-5"\n', encoding="utf-8")
+        monkeypatch.delenv("MODEL_ID", raising=False)
+
+        config.load_dotenv(env)
+
+        assert os.environ["MODEL_ID"] == "global.anthropic.claude-sonnet-5"
+
+    def test_a_missing_file_is_not_an_error(self, tmp_path):
+        """Lambda has no .env, and importing aiplat must not care."""
+        config.load_dotenv(tmp_path / "nope.env")
+
+    def test_comments_and_blanks_are_skipped(self, tmp_path, monkeypatch):
+        env = tmp_path / ".env"
+        env.write_text("# a comment\n\nTENANT=acme\n", encoding="utf-8")
+        monkeypatch.delenv("TENANT", raising=False)
+
+        config.load_dotenv(env)
+
+        assert os.environ["TENANT"] == "acme"

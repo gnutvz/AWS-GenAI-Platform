@@ -29,3 +29,8 @@ evals/corpus/
 
 # macOS Finder metadata
 .DS_Store
+
+# A filled-in handover config carries live credentials. .env is already
+# ignored; these catch the file arriving under the name it was sent as.
+handover.env
+*.handover.env

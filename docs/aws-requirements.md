@@ -120,13 +120,27 @@ aws service-quotas list-service-quotas --service-code bedrock --region $REGION \
 
 Two fillable files, both with placeholders:
 
+Which files depends on who runs the deploy.
+
+**If you deploy it yourself**, you need one thing from IT — access — and
+`make env TENANT=<slug>` generates the rest from the deployed stacks:
+
 | File | Filled by | Contains |
 |---|---|---|
-| [`docs/account-intake.yaml`](account-intake.yaml) | IT / whoever holds AWS access | Account id, region, Bedrock model access, quotas, constraints |
-| [`tenants/_template.yaml`](../tenants/_template.yaml) | Each department | Its slug, corpus paths, metadata rules, optional prompt and model |
+| [`docs/account-intake.yaml`](account-intake.yaml) | IT | Account id, region, model access, quotas, constraints |
+| [`tenants/_template.yaml`](../tenants/_template.yaml) | Each department | Slug, corpus paths, metadata rules, optional prompt and model |
 
-`.env` is **not** one of them — `make env TENANT=<slug>` generates it from the
-deployed stacks, so there is nothing to hand-copy and nothing to get wrong.
+**If IT deploys and hands the result back** — the common case when you have no
+console access — they fill in one file instead:
+
+| File | Filled by | Contains |
+|---|---|---|
+| [`docs/handover.env.template`](handover.env.template) | IT, after deploying | Credentials, region, and every resource id the application needs |
+
+Saved as `.env` in the repository root, it is the whole configuration: nothing
+else to look up, and nothing to run but the application. It carries live
+credentials, so it goes back through a secrets channel — `.env` and
+`handover.env` are both git-ignored.
 
 ## Ticket text
 
