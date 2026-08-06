@@ -1,40 +1,175 @@
-# Langfuse for local development — the zero-cost way to get prompt-level traces
-# before deciding whether the Fargate stack is worth its standing bill.
+# Langfuse for local development — prompt-level traces without a standing bill.
 #
-#   docker compose up -d   →   http://localhost:3000
+#   make trace-local   →   http://localhost:3000
 #
-# Then create a project, copy the keys, and set in .env:
+# The project, user and API keys are created on first boot (LANGFUSE_INIT_* below),
+# so there is nothing to click through and no keys to copy. Put this in .env:
+#
 #   OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:3000/api/public/otel
-#   OTEL_EXPORTER_OTLP_HEADERS=Authorization=Basic <base64 of publickey:secretkey>
+#   OTEL_EXPORTER_OTLP_HEADERS=Authorization=Basic cGstbGYtbG9jYWwtZGV2OnNrLWxmLWxvY2FsLWRldg==
+#
+# Sign in at localhost:3000 with dev@example.com / localdevpassword.
+#
+# ── Why this file is so much bigger than it used to be ──────────────────────
+# It used to be one Langfuse container and one Postgres. That was v2, which is
+# now two majors behind and receives no patches — not even security ones, which
+# v3 still does. v4 is the supported release and splits into web + worker and
+# requires ClickHouse, Redis and S3-compatible storage on top of Postgres.
+#
+# So this is the upstream v4 compose stack, trimmed to what local tracing needs.
+# It wants roughly 4GB of RAM and takes a minute or two to come up the first
+# time while ClickHouse migrations run. `make trace-local` waits for health.
+#
+# ⚠️  Every credential here is a published default and is fine only because
+#     everything except the web UI binds to 127.0.0.1. Do not put this file on
+#     a reachable host.
+
+x-langfuse-env: &langfuse-env
+  DATABASE_URL: postgresql://postgres:postgres@postgres:5432/postgres
+  SALT: local-development-salt
+  # Encrypts API keys and integration secrets at rest. Required since v3 —
+  # Langfuse refuses to start without it. `openssl rand -hex 32` for a real one.
+  #
+  # Quoted, and not the string of zeros upstream uses as its placeholder: YAML
+  # reads an unquoted all-digit token as a number, so `000...0` reaches the
+  # container as "0" and both containers crash on a 64-character length check.
+  ENCRYPTION_KEY: "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+  TELEMETRY_ENABLED: "false"
+  NEXTAUTH_URL: http://localhost:3000
+  # Both images otherwise bind only the container's own IP, which leaves their
+  # healthchecks unable to reach them over loopback: the container sits in
+  # `starting` for ever while the service is in fact answering fine.
+  HOSTNAME: 0.0.0.0
+
+  CLICKHOUSE_URL: http://clickhouse:8123
+  CLICKHOUSE_MIGRATION_URL: clickhouse://clickhouse:9000
+  CLICKHOUSE_USER: clickhouse
+  CLICKHOUSE_PASSWORD: clickhouse
+  CLICKHOUSE_CLUSTER_ENABLED: "false"
+
+  REDIS_HOST: redis
+  REDIS_PORT: "6379"
+  REDIS_AUTH: localredis
+
+  # MinIO stands in for S3. Traces and any multimodal payloads land here first;
+  # the worker then folds them into ClickHouse.
+  LANGFUSE_S3_EVENT_UPLOAD_BUCKET: langfuse
+  LANGFUSE_S3_EVENT_UPLOAD_REGION: auto
+  LANGFUSE_S3_EVENT_UPLOAD_ENDPOINT: http://minio:9000
+  LANGFUSE_S3_EVENT_UPLOAD_ACCESS_KEY_ID: minio
+  LANGFUSE_S3_EVENT_UPLOAD_SECRET_ACCESS_KEY: miniosecret
+  LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE: "true"
+  LANGFUSE_S3_EVENT_UPLOAD_PREFIX: events/
 
 services:
-  postgres:
-    image: postgres:16-alpine
-    environment:
-      POSTGRES_USER: langfuse
-      POSTGRES_PASSWORD: langfuse
-      POSTGRES_DB: langfuse
-    volumes:
-      - langfuse-db:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U langfuse"]
-      interval: 5s
-      retries: 10
-
-  langfuse:
-    image: langfuse/langfuse:2
-    depends_on:
-      postgres:
-        condition: service_healthy
+  langfuse-web:
+    image: docker.io/langfuse/langfuse:4
+    depends_on: &langfuse-depends-on
+      postgres: {condition: service_healthy}
+      clickhouse: {condition: service_healthy}
+      redis: {condition: service_healthy}
+      minio: {condition: service_healthy}
     ports:
       - "3000:3000"
     environment:
-      DATABASE_URL: postgresql://langfuse:langfuse@postgres:5432/langfuse
-      NEXTAUTH_URL: http://localhost:3000
-      # Local-only credentials. Never reuse these anywhere reachable.
-      NEXTAUTH_SECRET: local-development-secret-change-me
-      SALT: local-development-salt-change-me
-      TELEMETRY_ENABLED: "false"
+      <<: *langfuse-env
+      NEXTAUTH_SECRET: local-development-secret
+      # Provisioned on first boot only. Once the Postgres volume exists these are
+      # ignored, so changing a key here after the fact does nothing — you would
+      # need `docker compose down -v` first.
+      LANGFUSE_INIT_ORG_ID: local
+      LANGFUSE_INIT_ORG_NAME: Local
+      LANGFUSE_INIT_PROJECT_ID: aiplat
+      LANGFUSE_INIT_PROJECT_NAME: aiplat
+      LANGFUSE_INIT_PROJECT_PUBLIC_KEY: pk-lf-local-dev
+      LANGFUSE_INIT_PROJECT_SECRET_KEY: sk-lf-local-dev
+      LANGFUSE_INIT_USER_EMAIL: dev@example.com
+      LANGFUSE_INIT_USER_NAME: Local Dev
+      LANGFUSE_INIT_USER_PASSWORD: localdevpassword
+    healthcheck:
+      # 127.0.0.1, not localhost: the image has no IPv6 listener, and `localhost`
+      # resolves to ::1 first, so the probe is refused while the app is serving.
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3000/api/public/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 60s
+
+  # Ingestion is asynchronous in v4: the web container accepts spans and queues
+  # them, and this is what actually writes them. Without it the UI comes up,
+  # accepts traces, and shows none of them.
+  langfuse-worker:
+    image: docker.io/langfuse/langfuse-worker:4
+    depends_on: *langfuse-depends-on
+    environment: *langfuse-env
+    # Without this `docker compose up --wait` reports success while the worker is
+    # crash-looping, and traces are accepted but never written.
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3030/api/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+      start_period: 30s
+
+  postgres:
+    image: docker.io/postgres:17-alpine
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: postgres
+      # Langfuse requires UTC on every backing store. A non-UTC container clock
+      # does not fail — it silently returns empty or wrong time-range queries.
+      TZ: UTC
+      PGTZ: UTC
+    volumes:
+      - langfuse-db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 3s
+      retries: 10
+
+  clickhouse:
+    image: docker.io/clickhouse/clickhouse-server:25.12
+    user: "101:101"
+    environment:
+      CLICKHOUSE_DB: default
+      CLICKHOUSE_USER: clickhouse
+      CLICKHOUSE_PASSWORD: clickhouse
+      TZ: UTC
+    volumes:
+      - langfuse-clickhouse:/var/lib/clickhouse
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8123/ping || exit 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  redis:
+    image: docker.io/redis:7-alpine
+    # noeviction, because this is a job queue and not a cache: evicting a key
+    # under memory pressure drops traces rather than slowing them down.
+    command: ["redis-server", "--requirepass", "localredis", "--maxmemory-policy", "noeviction"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "--pass", "localredis", "ping"]
+      interval: 3s
+      retries: 10
+
+  minio:
+    image: docker.io/minio/minio
+    entrypoint: sh
+    command: -c 'mkdir -p /data/langfuse && minio server --address ":9000" --console-address ":9001" /data'
+    environment:
+      MINIO_ROOT_USER: minio
+      MINIO_ROOT_PASSWORD: miniosecret
+    ports:
+      - "127.0.0.1:9091:9001"   # console, if you ever need to look inside
+    volumes:
+      - langfuse-minio:/data
+    healthcheck:
+      test: ["CMD-SHELL", "mc ready local || exit 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
 
   # Opt-in: `docker compose --profile gateway up -d`. Off by default because the
   # bedrock route needs no proxy — see gateway/litellm-config.yaml for when it
@@ -57,3 +192,5 @@ services:
 
 volumes:
   langfuse-db:
+  langfuse-clickhouse:
+  langfuse-minio:

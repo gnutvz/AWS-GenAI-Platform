@@ -550,7 +550,7 @@
         <mxCell id="c8a" parent="1" style="rounded=0;fillColor=#F0F0F0;strokeColor=#CCCCCC;fontSize=11;fontStyle=1;align=left;spacingLeft=10;" value="Observability" vertex="1">
           <mxGeometry height="60" width="220" x="40" y="546" as="geometry" />
         </mxCell>
-        <mxCell id="c8b" parent="1" style="rounded=0;fillColor=#FFFFFF;strokeColor=#CCCCCC;fontSize=11;align=left;spacingLeft=10;" value="OTLP → Langfuse, local or Fargate" vertex="1">
+        <mxCell id="c8b" parent="1" style="rounded=0;fillColor=#FFFFFF;strokeColor=#CCCCCC;fontSize=11;align=left;spacingLeft=10;" value="OTLP → any collector; Langfuse v4 local" vertex="1">
           <mxGeometry height="60" width="460" x="260" y="546" as="geometry" />
         </mxCell>
         <mxCell id="c8c" parent="1" style="rounded=0;fillColor=#FAFAFA;strokeColor=#CCCCCC;fontSize=11;align=left;spacingLeft=10;" value="Same OTLP, any backend; cost split per tenant" vertex="1">

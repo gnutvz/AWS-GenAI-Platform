@@ -36,7 +36,7 @@ OUTPUT_TO_ENV = {
 }
 
 # Shared across tenants.
-SHARED_STACKS = ["Safety", "Observability"]
+SHARED_STACKS = ["Safety"]
 # One set per tenant — .env points at exactly one, since the CLI and eval runner
 # each talk to a single deployment.
 TENANT_STACKS = ["Knowledge", "Api"]
@@ -78,8 +78,8 @@ def collect(prefix: str, region: str, tenant: str) -> dict[str, str]:
         except ClientError as exc:
             code = exc.response.get("Error", {}).get("Code", "")
             message = exc.response.get("Error", {}).get("Message", "")
-            # Observability is opt-in, so its absence is normal — say so once
-            # rather than looking like a failure.
+            # A tenant may legitimately not have every stack yet, so a missing
+            # one is reported rather than raised.
             if code == "ValidationError" and "does not exist" in message:
                 print(f"  {stack_name}: not deployed, skipping", file=sys.stderr)
                 continue

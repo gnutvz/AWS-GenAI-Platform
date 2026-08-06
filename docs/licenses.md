@@ -37,8 +37,11 @@ python scripts/check_licenses.py --list   # every package and its licence
 
 | Image | Licence | Note |
 |---|---|---|
-| `langfuse/langfuse:2` | MIT, **except `/ee`** | ⚠️ See below |
-| `postgres:16-alpine` | PostgreSQL Licence | Permissive |
+| `langfuse/langfuse:4`, `langfuse/langfuse-worker:4` | MIT, **except `/ee`** | ⚠️ See below |
+| `clickhouse/clickhouse-server` | Apache-2.0 | Permissive |
+| `minio/minio` | AGPL-3.0 | ⚠️ Local development only — see below |
+| `redis:7-alpine` | RSALv2 / SSPLv1 | ⚠️ Local development only — see below |
+| `postgres:17-alpine` | PostgreSQL Licence | Permissive |
 | `ghcr.io/berriai/litellm` | MIT | |
 | `python:3.11-slim` | PSF + Debian | |
 
@@ -46,11 +49,24 @@ python scripts/check_licenses.py --list   # every package and its licence
 
 ## Two things worth knowing
 
+**The tracing images are development-only, and that is what keeps them clean.**
+`docker-compose.yml` is `make trace-local` — a developer's laptop. Nothing in it
+is shipped, redistributed or offered as a service, and no CDK stack deploys it,
+so the copyleft and source-available terms below place no obligation on this
+project.
+
+That distinction is the whole reason it holds, so it is worth stating plainly:
+MinIO is AGPL-3.0 and Redis 7 is RSALv2/SSPLv1. Neither would be acceptable in
+the shipped dependency tree — `scripts/check_licenses.py` would reject them, and
+does gate the Python packages. If you ever move this stack onto a server you
+offer to others, both terms start to bite, and the answer is the official
+Langfuse Helm chart or Langfuse Cloud rather than this file. See
+[tracing.md](tracing.md).
+
 **Langfuse has an enterprise edition.** The repository is MIT *except the `ee`
-folders*. Self-hosting the open-source build commercially is free, which is what
-the observability stack deploys — but if someone later enables an EE feature, it
-needs a commercial licence. Worth a check before offering tracing as part of a
-paid engagement.
+folders*. Running the open-source build is free; enabling an EE feature needs a
+commercial licence. Worth a check before offering tracing as part of a paid
+engagement.
 
 **Two MPL-2.0 packages** (`bidict`, `certifi`) arrive transitively. MPL is
 file-level copyleft: using them unmodified as libraries carries no obligation.

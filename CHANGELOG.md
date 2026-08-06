@@ -8,6 +8,70 @@ The version lives in `pyproject.toml` and is read at runtime as
 
 ## [Unreleased]
 
+## [0.9.3] — 2026-08-06
+
+### Changed
+
+- **Local tracing moved from Langfuse v2 to v4, and was booted rather than
+  assumed.** v2 is two majors behind and receives no patches — not even the
+  security ones v3 still gets. v4 splits into web + worker and requires
+  ClickHouse, Redis and S3-compatible storage on top of Postgres, so
+  `docker-compose.yml` grew from two services to six.
+
+  Four defects surfaced only by actually running it, each of which fails in a
+  way that does not look like its cause:
+
+  - Upstream's placeholder `ENCRYPTION_KEY` is sixty-four zeros. Unquoted, YAML
+    reads it as the integer `0`, the container receives `"0"`, and both
+    containers crash reporting the key is too short — which reads as a wrong
+    key rather than wrong quoting.
+  - `LANGFUSE_INIT_USER_EMAIL=dev@localhost` fails Langfuse's email validation,
+    which has no TLD to match. The web container then returns 500 for every
+    request including its own health endpoint.
+  - Both images bind only the container's own IP unless `HOSTNAME=0.0.0.0` is
+    set. The published port works, so the UI serves fine while the healthcheck
+    is refused over loopback and the container never leaves `starting`.
+  - `localhost` inside the containers resolves to `::1`, and there is no IPv6
+    listener, so healthchecks must use `127.0.0.1`.
+
+  The worker now has a healthcheck. Without one `docker compose up --wait`
+  reports success while it crash-loops, and since the web container still
+  accepts spans and returns 200, the failure presents as traces that silently
+  never appear.
+
+  `tests/test_compose.py` asserts all of the above without Docker, and each
+  assertion was checked against the mutation it exists to catch.
+
+- `make trace-local` now waits for health and prints the ready-to-paste config.
+  The project, user and API keys are provisioned on first boot, so there is no
+  longer a step where you click through a UI to copy keys out of it. Added
+  `make trace-stop` (`WIPE=1` to drop stored traces).
+
+### Removed
+
+- **The self-hosted Langfuse CDK stack.** `ObservabilityStack` deployed v2 to
+  Fargate. Upgrading it in place means running ClickHouse — which AWS offers no
+  managed version of — as a stateful service on ECS-on-EC2 with EBS: several
+  hundred lines of infrastructure and roughly 4× the standing cost, for a
+  component whose architecture has changed twice in two majors.
+
+  The stack had already gone two majors stale without anyone noticing, precisely
+  because nothing in the platform depends on it. `aiplat/telemetry.py` speaks
+  OTLP and does not know what is on the other end, so where spans land is a
+  config decision. `docs/tracing.md` documents the three real options — local
+  compose, ADOT to CloudWatch/X-Ray with no new infrastructure, or Langfuse
+  Cloud/Helm — and records this reasoning so the stack does not get rebuilt.
+
+  Removes the only standing bill in the repo.
+
+### Fixed
+
+- `docs/licenses.md` listed neither MinIO (AGPL-3.0) nor Redis 7 (RSALv2/SSPLv1),
+  both of which the tracing stack now pulls in. Neither would be acceptable in
+  the shipped tree; both are fine here because the compose file is a developer's
+  laptop and nothing deploys it. That distinction is now stated rather than left
+  implicit.
+
 ## [0.9.2] — 2026-08-06
 
 ### Changed

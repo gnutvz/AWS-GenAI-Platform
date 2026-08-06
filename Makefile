@@ -1,4 +1,4 @@
-.PHONY: help install deploy destroy ingest eval trace-local lint test guide
+.PHONY: help install deploy destroy ingest eval trace-local trace-stop lint test guide
 
 PYTHON := .venv/bin/python
 # Headless Chrome renders docs/setup-guide.html to PDF. Override on Linux:
@@ -21,9 +21,6 @@ deploy: ## Deploy every tenant (and shared stacks)
 
 deploy-tenant: ## Deploy one tenant: make deploy-tenant TENANT=acme
 	$(CDK) deploy AiPlat-Safety AiPlat-Knowledge-$(TENANT) AiPlat-Api-$(TENANT) --require-approval never
-
-deploy-obs: ## Deploy everything including self-hosted Langfuse (has a standing cost)
-	$(CDK) deploy --all -c observability=true --require-approval never
 
 destroy: ## Tear down. Documents bucket and knowledge base are RETAIN — delete by hand.
 	$(CDK) destroy --all
@@ -60,8 +57,19 @@ ask: ## Ask the deployed agent: make ask Q="what is the deploy procedure?"
 	$(PYTHON) scripts/ask.py "$(Q)"
 
 trace-local: ## Run Langfuse locally on :3000 for development
-	docker compose up -d
-	@echo "Langfuse: http://localhost:3000 — create a project, then set OTEL_EXPORTER_OTLP_*"
+	@# --wait blocks on the healthchecks. First boot runs ClickHouse migrations and
+	@# takes a minute or two; without this the next line prints keys for a UI that
+	@# is not up yet.
+	docker compose up -d --wait
+	@echo
+	@echo "Langfuse:  http://localhost:3000   (dev@example.com / localdevpassword)"
+	@echo
+	@echo "Add to .env — the project and keys already exist, nothing to copy:"
+	@echo "  OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:3000/api/public/otel"
+	@echo "  OTEL_EXPORTER_OTLP_HEADERS=Authorization=Basic $$(printf 'pk-lf-local-dev:sk-lf-local-dev' | base64)"
+
+trace-stop: ## Stop Langfuse (add WIPE=1 to also delete the stored traces)
+	docker compose down $(if $(WIPE),--volumes,)
 
 gateway-local: ## Run the LiteLLM proxy on :4000 (LLM_ROUTE=gateway)
 	docker compose --profile gateway up -d

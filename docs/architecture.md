@@ -13,7 +13,7 @@ flowchart LR
     AG -->|InvokeModel| BR[Bedrock<br/>+ Guardrail]
     AG -->|Retrieve| KB[Knowledge Base]
     AG -->|read/write| SS[(S3<br/>session state)]
-    AG -.->|OTLP spans| LF[Langfuse]
+    AG -.->|OTLP spans| LF[Any OTLP collector]
 
     KB --> VS[(S3 Vectors)]
     KB --> DOC[(S3<br/>documents)]
@@ -48,7 +48,7 @@ flowchart TD
         G[LiteLLM gateway]
         SV[S3 Vectors]
         OS[OpenSearch Serverless]
-        LFA[Langfuse]
+        LFA[Langfuse v4]
         ADOT[ADOT / CloudWatch]
     end
 

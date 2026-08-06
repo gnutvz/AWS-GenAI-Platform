@@ -33,7 +33,7 @@ are not a platform yet.
 | Retrieval | Bedrock Knowledge Bases | Chunking, embedding and indexing are solved problems |
 | Document parsing | [prismdoc](https://github.com/gnutvz/prismdoc) (open source) | Parsing quality decides RAG quality — this is worth owning, and figures are part of the document |
 | Safety | Bedrock Guardrails | Auditors want a policy artifact with a version number |
-| Tracing & eval | OpenTelemetry → Langfuse (self-hosted) | Traces and eval datasets are your asset; never hand them to a proprietary format |
+| Tracing & eval | OpenTelemetry, collector of your choice | Traces and eval datasets are your asset; OTLP keeps them portable and keeps a vendor's deployment out of this repo |
 
 ## Layout
 
@@ -47,7 +47,7 @@ services/
   agent/           agent.py (portable) + lambda_handler.py + agentcore_app.py
   ingest/          prismdoc → S3 → Knowledge Base sync
 evals/             dataset + scoring harness
-infra/             CDK: knowledge, safety, api, observability
+infra/             CDK: knowledge, safety, api, agentcore
 ```
 
 The shape matters more than the file count: `services/agent/agent.py` knows nothing
@@ -206,8 +206,8 @@ crashing — no knowledge base means no retrieval tool, and the agent says so.
 
 | Want | Do |
 |---|---|
-| Tracing locally, free | `make trace-local` (Langfuse on `localhost:3000`) |
-| Tracing and cost per call, deployed | `cdk deploy -c observability=true`, then set `OTEL_EXPORTER_OTLP_*` |
+| Tracing locally, free | `make trace-local` (Langfuse v4 on `localhost:3000`) |
+| Tracing deployed | Set `OTEL_EXPORTER_OTLP_*` at any collector — [docs/tracing.md](docs/tracing.md) |
 | The prebuilt Strands tool catalogue | `pip install -e '.[tools]'` — adds ~95MB, so it is not in the Lambda bundle |
 | Per-team budgets, non-Bedrock models | `make gateway-local`, then `LLM_ROUTE=gateway` + `MODEL_ID=platform-default` |
 | Streaming, long sessions | `make image-agent` and deploy it to AgentCore Runtime |
@@ -219,9 +219,10 @@ At rest, with the default three stacks: S3 storage and S3 Vectors storage. Cents
 There is no always-on compute — Lambda bills per invocation, S3 Vectors bills per
 query, Bedrock bills per token.
 
-Adding `-c observability=true` changes that. An ALB is ~$16/month whether or not it
-serves a request, plus a NAT gateway and Aurora's minimum ACU while awake. That is
-the only stack here with a standing bill, which is why it is opt-in.
+Nothing here has a standing bill. There used to be an opt-in Langfuse stack that
+did — an ALB alone is ~$16/month whether or not it serves a request — and it was
+removed rather than upgraded; [docs/tracing.md](docs/tracing.md) explains why and
+what to use instead.
 
 ## Known limits
 
@@ -246,11 +247,14 @@ the only stack here with a standing bill, which is why it is opt-in.
   tables, rules and borders, but it is inference with no benchmark behind it —
   run it on a sample and read the counts first. Embedded figures are extracted
   (not inferred) in PDF, PPTX and DOCX; HTML figures are not extracted at all.
-- **Langfuse here is v2** (Postgres only). v3 splits into web + worker and adds
-  ClickHouse, Redis and S3.
+- **Tracing is bring-your-own collector.** The platform emits OTLP and stops
+  there; `make trace-local` runs Langfuse v4 for development, but nothing in
+  this repo deploys a collector to AWS. See [docs/tracing.md](docs/tracing.md).
 - **Nothing here has been deployed to a live account yet.** CI proves the code
   lints, the tests pass against stubs, all four stacks synthesize, and the Lambda
   bundle builds — it does not prove Bedrock returns what the eval suite expects.
+  The local tracing stack is the exception: it is booted and asserted end-to-end,
+  OTLP span in to queryable observation out.
 
 ## Licence
 

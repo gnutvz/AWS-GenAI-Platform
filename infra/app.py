@@ -11,12 +11,14 @@ retrieval is a permission nobody holds rather than a filter someone can forget.
 Within a tenant: knowledge holds durable state, api holds disposable compute.
 Redeploying the agent fifty times a day should never risk the index.
 
-Shared by everyone: the guardrail (policy, not data) and observability (traces
-carry a tenant attribute).
+Shared by everyone: the guardrail, because it is policy rather than data.
 
     cdk deploy --all                                    # every tenant
     cdk deploy AiPlat-Knowledge-acme AiPlat-Api-acme    # just one
-    cdk deploy --all -c observability=true              # ... plus self-hosted Langfuse
+
+Tracing is deliberately not a stack here. The agent exports OTLP and any
+collector can receive it, so where those spans land is a config decision rather
+than infrastructure this repo owns — see docs/tracing.md.
 """
 
 from __future__ import annotations
@@ -35,7 +37,6 @@ sys.path.insert(0, str(REPO_ROOT))
 from stacks.agentcore_stack import AgentCoreStack
 from stacks.api_stack import ApiStack
 from stacks.knowledge_stack import KnowledgeStack
-from stacks.observability_stack import ObservabilityStack
 from stacks.safety_stack import SafetyStack
 
 from aiplat.tenants import load_all
@@ -72,10 +73,9 @@ def main() -> None:
     # cadence than any tenant's data.
     safety = SafetyStack(app, f"{prefix}-Safety", env=env)
 
-    otlp_endpoint = ""
-    if app.node.try_get_context("observability"):
-        observability = ObservabilityStack(app, f"{prefix}-Observability", env=env)
-        otlp_endpoint = f"{observability.endpoint}/api/public/otel"
+    # Empty unless set in .env after the fact: the collector lives outside this
+    # deployment, so CDK has no endpoint to hand the function at synth time.
+    otlp_endpoint = os.environ.get("OTEL_EXPORTER_OTLP_ENDPOINT", "")
 
     for tenant in tenants:
         knowledge = KnowledgeStack(
@@ -97,7 +97,9 @@ def main() -> None:
             guardrail_version=safety.guardrail_version,
             model_id=model_id,
             otlp_endpoint=otlp_endpoint,
-            # Credentials are set after Langfuse is up and a project exists — see README.
+            # Never from CDK: these are credentials, and stack parameters are
+            # readable by anyone with describe-stacks. Set on the function after
+            # the fact — see docs/tracing.md.
             otlp_headers="",
             description=f"Agent runtime for tenant '{tenant.slug}'",
         )

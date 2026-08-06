@@ -77,7 +77,7 @@ No support ticket needed. Listed for security review.
 
 **Not used:** VPC, NAT Gateway, load balancer, database, EC2.
 
-*Optional tracing stack only* (`-c observability=true`, **~tens of $/month even idle** — skip unless asked): VPC, NAT, ALB, ECS Fargate, Aurora Serverless v2, Secrets Manager.
+*Tracing needs nothing from this account.* The agent exports OTLP to whatever collector you point it at; there is no tracing stack to deploy. See [tracing.md](tracing.md).
 
 ---
 
