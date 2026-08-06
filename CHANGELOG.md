@@ -8,6 +8,22 @@ The version lives in `pyproject.toml` and is read at runtime as
 
 ## [Unreleased]
 
+## [0.8.2] — 2026-08-06
+
+### Fixed
+
+- **`docs/account-intake.yaml` asked for three of the six things IT has to do.**
+  It captured region, Bedrock model access and `cdk bootstrap`, and omitted the
+  deploy principal — so the form could come back fully filled and still leave
+  nobody able to run `make deploy`. A form that completes and blocks anyway is
+  worse than no form.
+
+  Also adds the two billing items from `docs/aws-requirements.md` §1. The cost
+  allocation tag matters more than it reads: every resource is already tagged by
+  tenant, but the tag does nothing in cost reports until it is activated, and
+  **activation is not retroactive** — miss it and the early months cannot be split
+  by tenant at all.
+
 ## [0.8.1] — 2026-08-06
 
 ### Added

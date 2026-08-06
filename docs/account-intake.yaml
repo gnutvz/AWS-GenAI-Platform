@@ -29,6 +29,33 @@ account:
   cdk_bootstrapped: REPLACE_ME  # true | false
 
 
+access:
+  # [IT] How the person running the deploy authenticates. Without this nothing
+  # below matters — every other answer can be perfect and `make deploy` still
+  # cannot start.
+  #
+  # A CDK deploy role is preferred over a long-lived user. The services that need
+  # managing are listed in docs/aws-requirements.md §4; §1 item 4 has the detail.
+  deploy_principal: "REPLACE_ME"      # e.g. role ARN, SSO permission set name
+
+  # [IT] Who has been granted it. Name the person, not the team — a deploy that
+  # fails on permissions needs someone to ask.
+  granted_to: "REPLACE_ME"
+
+
+billing:
+  # [IT] Recommended before the first deploy. Idle cost here is close to zero,
+  # but a runaway ingest or eval run bills real Bedrock tokens, and the first one
+  # is exactly when nobody is watching the number yet.
+  budget_alert_configured: REPLACE_ME   # true | false
+
+  # [IT] Activate the `tenant` cost allocation tag in Billing. Every resource is
+  # already tagged; the tag does nothing in cost reports until it is activated,
+  # and activation is not retroactive — do it before the first deploy or the
+  # early months cannot be split by tenant at all.
+  tenant_tag_activated: REPLACE_ME      # true | false
+
+
 bedrock:
   # [IT] Model access must be ENABLED in the Bedrock console before anything
   # works. This is the step that most often gets missed: without it the deploy
