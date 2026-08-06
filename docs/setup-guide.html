@@ -1,0 +1,314 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>AI Platform — AWS Setup Guide</title>
+<style>
+  @page { size: A4; margin: 18mm 16mm; }
+  * { box-sizing: border-box; }
+  body {
+    font: 10.5pt/1.55 -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    color: #1a1a1a; margin: 0;
+  }
+  h1 { font-size: 21pt; margin: 0 0 4pt; letter-spacing: -0.3pt; }
+  .sub { color: #555; font-size: 10pt; margin-bottom: 18pt; }
+  h2 {
+    font-size: 13pt; margin: 20pt 0 7pt; padding-top: 7pt;
+    border-top: 1.5px solid #1a1a1a; page-break-after: avoid;
+  }
+  h3 { font-size: 10.5pt; margin: 13pt 0 4pt; page-break-after: avoid; }
+  p, li { margin: 0 0 6pt; }
+  ul, ol { padding-left: 18pt; margin: 0 0 8pt; }
+  code {
+    font-family: "SF Mono", Menlo, Consolas, monospace; font-size: 9pt;
+    background: #f2f2f0; padding: 1px 4px; border-radius: 3px;
+  }
+  pre {
+    font-family: "SF Mono", Menlo, Consolas, monospace; font-size: 8.7pt;
+    background: #f7f7f5; border: 1px solid #e0e0dc; border-left: 3px solid #888;
+    padding: 8pt 10pt; overflow-x: auto; line-height: 1.45;
+    page-break-inside: avoid; margin: 0 0 8pt;
+  }
+  pre code { background: none; padding: 0; }
+  table { border-collapse: collapse; width: 100%; margin: 0 0 9pt; font-size: 9.3pt; }
+  th, td { border: 1px solid #d8d8d4; padding: 5pt 7pt; text-align: left; vertical-align: top; }
+  th { background: #f2f2f0; font-weight: 600; }
+  .warn {
+    border: 1px solid #c9a227; background: #fdf8e8; border-left: 4px solid #c9a227;
+    padding: 8pt 11pt; margin: 0 0 10pt; page-break-inside: avoid;
+  }
+  .note {
+    border: 1px solid #cfd8e0; background: #f4f8fb; border-left: 4px solid #5a7d9a;
+    padding: 8pt 11pt; margin: 0 0 10pt; page-break-inside: avoid;
+  }
+  .warn p:last-child, .note p:last-child { margin-bottom: 0; }
+  .step { color: #666; font-weight: 600; font-size: 9pt; letter-spacing: 0.6pt; }
+  .page-break { page-break-before: always; }
+  footer { margin-top: 22pt; padding-top: 8pt; border-top: 1px solid #d8d8d4;
+           color: #666; font-size: 8.5pt; }
+</style>
+
+<h1>AI Platform — AWS Setup Guide</h1>
+<p class="sub">
+  What to deploy, and what to send back. Roughly 45 minutes, most of it waiting.
+</p>
+
+<h2>What you are being asked to do</h2>
+
+<p>
+  Deploy a small, serverless document-question-answering system into an AWS
+  account, then return one configuration file so the requester can use it. They
+  have no console access, so every value they need has to come back in that file.
+</p>
+
+<table>
+  <tr><th>What gets created</th><th>What does <em>not</em></th></tr>
+  <tr>
+    <td>
+      A Bedrock Knowledge Base, an S3 bucket for documents, an S3 bucket for
+      conversation state, a Lambda function, a Bedrock Guardrail, and IAM roles
+      scoped to those resources.
+    </td>
+    <td>
+      No VPC. No load balancer. No database. No cluster. Nothing that runs when
+      idle — Lambda bills per invocation and S3 Vectors bills per query.
+    </td>
+  </tr>
+</table>
+
+<div class="note">
+  <p>
+    <strong>Cost while idle is close to zero.</strong> Storage only, in the order
+    of cents per month. Cost appears when questions are asked, billed as Bedrock
+    tokens. A budget alert before the first deploy is recommended.
+  </p>
+</div>
+
+<h3>You will need</h3>
+<ul>
+  <li>An AWS account, and permission to manage Bedrock, S3, Lambda and IAM in it.</li>
+  <li>A region where Bedrock is available — <code>us-west-2</code> and
+      <code>us-east-1</code> are the usual choices.</li>
+  <li>About 45 minutes, most of which is the deploy running unattended.</li>
+</ul>
+
+<h2><span class="step">STEP 1</span> &nbsp; Enable Bedrock model access</h2>
+
+<div class="warn">
+  <p>
+    <strong>Do this first. It is the step that fails silently.</strong> If model
+    access is not enabled, everything below still succeeds — the deploy completes,
+    no error appears — and then the very first question fails with
+    <code>AccessDeniedException</code>. It looks like a broken application and is
+    not one.
+  </p>
+</div>
+
+<p>In the AWS console, in the region you have chosen:</p>
+<ol>
+  <li>Open <strong>Amazon Bedrock</strong> → <strong>Model access</strong>.</li>
+  <li>Choose <strong>Modify model access</strong>.</li>
+  <li>Enable a Claude chat model. If several are available, enable more than one —
+      it makes changing the choice later a config edit rather than another ticket.</li>
+  <li>Enable <strong>Titan Text Embeddings V2</strong>
+      (<code>amazon.titan-embed-text-v2</code>). Nothing becomes searchable
+      without it.</li>
+  <li>Submit, and wait until status reads <em>Access granted</em>.</li>
+</ol>
+
+<p>Confirm from the command line:</p>
+<pre><code>aws bedrock list-inference-profiles --region us-west-2 \
+  --query "inferenceProfileSummaries[?contains(inferenceProfileId,'anthropic')].inferenceProfileId"
+
+aws bedrock list-foundation-models --region us-west-2 \
+  --query "modelSummaries[?contains(modelId,'titan-embed-text-v2')].modelId"</code></pre>
+
+<p>Both commands must return at least one entry. If either is empty, stop here.</p>
+
+<h2><span class="step">STEP 2</span> &nbsp; Install the tools</h2>
+
+<table>
+  <tr><th>Tool</th><th>Why</th><th>Install</th></tr>
+  <tr><td>Python 3.11+</td><td>Runs the deploy scripts</td><td><code>python.org</code></td></tr>
+  <tr><td>uv</td><td>Package manager used by the Makefile</td>
+      <td><code>curl -LsSf https://astral.sh/uv/install.sh | sh</code></td></tr>
+  <tr><td>Node 22+</td><td>Runs the AWS CDK CLI</td><td><code>nodejs.org</code></td></tr>
+  <tr><td>AWS CLI v2</td><td>Credentials and reading outputs</td><td><code>aws.amazon.com/cli</code></td></tr>
+  <tr><td>Docker</td><td>Packages the Lambda</td><td><code>docker.com</code> — must be <em>running</em></td></tr>
+</table>
+
+<p>Then get the code and install it:</p>
+<pre><code>git clone &lt;repository-url&gt;
+cd AWS-GenAI-Platform
+make install</code></pre>
+
+<h2><span class="step">STEP 3</span> &nbsp; Point the AWS CLI at the account</h2>
+
+<pre><code>aws configure sso        # if the account uses SSO
+aws configure            # otherwise
+
+aws sts get-caller-identity     # confirm: prints the account id
+export AWS_REGION=us-west-2     # same region as Step 1</code></pre>
+
+<h2 class="page-break"><span class="step">STEP 4</span> &nbsp; Deploy</h2>
+
+<p>
+  A tenant is one isolated set of resources — its own knowledge base, its own
+  function, its own IAM role. The repository ships with an example tenant called
+  <code>acme</code>; the requester will tell you which slug they want. Substitute
+  it for <code>acme</code> throughout.
+</p>
+
+<pre><code>cd infra &amp;&amp; npx cdk bootstrap     # once per account and region
+cd .. &amp;&amp; make deploy</code></pre>
+
+<p>
+  This takes 10–20 minutes, mostly building the Knowledge Base. It is safe to
+  leave unattended. It is also safe to re-run: CDK applies only differences.
+</p>
+
+<div class="note">
+  <p>
+    <strong>If it fails on permissions</strong> — the most likely failure — the
+    error names the missing action. Grant it and re-run <code>make deploy</code>;
+    nothing needs undoing first.
+  </p>
+</div>
+
+<h2><span class="step">STEP 5</span> &nbsp; Generate the configuration file</h2>
+
+<p>
+  There is a command for this. It reads every value back out of the deployed
+  stacks and writes them to a file called <code>.env</code>, so nothing has to be
+  copied by hand:
+</p>
+
+<pre><code>make env TENANT=acme
+cat .env</code></pre>
+
+<p>You should see roughly this, with real values:</p>
+
+<pre><code>TENANT=acme
+AWS_REGION=us-west-2
+KNOWLEDGE_BASE_ID=ABCD1234EF
+DOCUMENTS_BUCKET=aiplat-knowledge-acme-documents-...
+SESSION_BUCKET=aiplat-api-acme-sessions-...
+GUARDRAIL_ID=abcd1234efgh
+GUARDRAIL_VERSION=1
+AGENT_FUNCTION_URL=https://....lambda-url.us-west-2.on.aws/</code></pre>
+
+<div class="warn">
+  <p>
+    <strong>If a line is missing or blank</strong>, that stack did not deploy.
+    Do not send a partial file — go back to Step 4 and check for errors. A missing
+    <code>GUARDRAIL_ID</code> in particular means the system would run with no PII
+    masking and no grounding check.
+  </p>
+</div>
+
+<h2><span class="step">STEP 6</span> &nbsp; Add credentials</h2>
+
+<p>
+  The generated file describes <em>what</em> to talk to. The recipient also needs
+  permission to talk to it. Choose one:
+</p>
+
+<h3>Option A — SSO or an assumable role (preferred)</h3>
+<p>
+  Nothing secret travels. Grant the recipient access, send them the SSO start URL
+  separately, and add nothing to the file. They will run
+  <code>aws configure sso</code> themselves.
+</p>
+
+<h3>Option B — an access key</h3>
+<p>
+  Create a principal that can call Bedrock, read the documents bucket, and
+  read/write the session bucket. <strong>It does not need permission to deploy
+  anything.</strong> Append two lines to <code>.env</code>:
+</p>
+<pre><code>AWS_ACCESS_KEY_ID=...
+AWS_SECRET_ACCESS_KEY=...</code></pre>
+
+<h2><span class="step">STEP 7</span> &nbsp; Check it works before sending</h2>
+
+<p>Load a few documents and ask a question about them:</p>
+
+<pre><code>make image-ingest
+
+docker run --rm -v ~/.aws:/root/.aws:ro -v "$PWD/sample-docs:/data:ro" \
+  -e AWS_REGION -e DOCUMENTS_BUCKET -e KNOWLEDGE_BASE_ID \
+  aiplat-ingest /data --wait
+
+make ask Q="What do these documents cover?"</code></pre>
+
+<p>
+  A grounded answer with <code>[1]</code>-style citations means the whole chain
+  works. An honest <em>"I don't know"</em> for something the documents do not
+  cover is also a correct result — the system is built to refuse rather than
+  guess, and seeing it do so is a good sign.
+</p>
+
+<h2><span class="step">STEP 8</span> &nbsp; Send the file back</h2>
+
+<div class="warn">
+  <p>
+    <strong>If you chose Option B, this file now contains live credentials.</strong>
+    Send it through whatever your organisation uses for secrets — a password
+    manager, a vault, an encrypted share. Not email, not chat.
+  </p>
+</div>
+
+<p>
+  The recipient saves it as <code>.env</code> in the repository root. That is the
+  entire handover: they have no further setup to do.
+</p>
+
+<h2>If something goes wrong</h2>
+
+<table>
+  <tr><th>Symptom</th><th>Cause</th><th>Fix</th></tr>
+  <tr>
+    <td><code>AccessDeniedException</code> when asking a question</td>
+    <td>Model access not enabled, or enabled in a different region</td>
+    <td>Step 1, in the region from Step 3</td>
+  </tr>
+  <tr>
+    <td><code>make deploy</code> fails naming an IAM action</td>
+    <td>The deploying principal lacks that permission</td>
+    <td>Grant it, re-run — nothing needs undoing</td>
+  </tr>
+  <tr>
+    <td>Docker or bundling error during deploy</td>
+    <td>Docker is not running</td>
+    <td>Start Docker, re-run</td>
+  </tr>
+  <tr>
+    <td><code>make env</code> writes an empty or partial file</td>
+    <td>Some stacks did not deploy</td>
+    <td>Re-run <code>make deploy</code> and read the errors</td>
+  </tr>
+  <tr>
+    <td>Questions return "I don't know" for everything</td>
+    <td>No documents indexed yet</td>
+    <td>Run the ingest step; wait for it to finish</td>
+  </tr>
+  <tr>
+    <td>Deploy succeeds, questions fail with a throttling error</td>
+    <td>Bedrock quota too low for this account</td>
+    <td>Request a quota increase for the chosen model</td>
+  </tr>
+</table>
+
+<h2>Removing it again</h2>
+
+<pre><code>make destroy</code></pre>
+
+<p>
+  The documents bucket and the knowledge base are deliberately retained, so an
+  accidental teardown cannot delete an indexed corpus. Delete those two by hand
+  when the removal is intended.
+</p>
+
+<footer>
+  Full technical detail, including the exact IAM permissions and the answers a
+  security review will ask for, is in <code>docs/aws-requirements.md</code> in the
+  repository.
+</footer>

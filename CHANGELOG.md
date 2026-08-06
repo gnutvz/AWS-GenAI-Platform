@@ -8,6 +8,19 @@ The version lives in `pyproject.toml` and is read at runtime as
 
 ## [Unreleased]
 
+## [0.9.1] — 2026-08-06
+
+### Added
+
+- **`docs/setup-guide.pdf`** — a printable walkthrough for whoever deploys this
+  into an AWS account and hands the result back. Written for someone who has
+  never seen this repository: what gets created and what does not, the Bedrock
+  model-access step that fails silently, the deploy, generating the config file,
+  which credentials to attach, how to verify before sending, and a
+  symptom/cause/fix table.
+
+  Source is `docs/setup-guide.html`; `make guide` re-renders the PDF.
+
 ## [0.9.0] — 2026-08-06
 
 For the case where someone else owns the AWS account: they deploy, fill in one

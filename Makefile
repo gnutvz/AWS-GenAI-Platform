@@ -1,6 +1,9 @@
-.PHONY: help install deploy destroy ingest eval trace-local lint test
+.PHONY: help install deploy destroy ingest eval trace-local lint test guide
 
 PYTHON := .venv/bin/python
+# Headless Chrome renders docs/setup-guide.html to PDF. Override on Linux:
+#   make guide CHROME=google-chrome
+CHROME ?= /Applications/Google Chrome.app/Contents/MacOS/Google Chrome
 CDK := cd infra && PATH="$(PWD)/.venv/bin:$$PATH" npx cdk
 
 help:
@@ -80,6 +83,28 @@ push-agent: ## Push the agent image to a tenant's repo: make push-agent TENANT=a
 	docker tag aiplat-agent:latest $(REPO):latest
 	docker push $(REPO):latest
 	@echo "Pushed $(REPO):latest — now: cd infra && npx cdk deploy -c agentcore=true"
+
+guide: ## Rebuild docs/setup-guide.pdf from its HTML source
+	@test -x "$(CHROME)" || { \
+	  echo "Chrome not found at: $(CHROME)"; \
+	  echo "Override with  make guide CHROME=/path/to/chrome  — or open"; \
+	  echo "docs/setup-guide.html in any browser and print to PDF."; exit 1; }
+	@rm -f docs/setup-guide.pdf
+	@# Headless Chrome writes the PDF and then does not exit, so it runs in the
+	@# background and is stopped once the file stops growing.
+	@"$(CHROME)" --headless --disable-gpu --no-pdf-header-footer \
+	   --user-data-dir=$$(mktemp -d) \
+	   --print-to-pdf="$(PWD)/docs/setup-guide.pdf" \
+	   "file://$(PWD)/docs/setup-guide.html" >/dev/null 2>&1 & \
+	 CHROME_PID=$$!; \
+	 for i in $$(seq 1 30); do \
+	   sleep 1; \
+	   if [ -s docs/setup-guide.pdf ]; then sleep 1; break; fi; \
+	 done; \
+	 kill $$CHROME_PID 2>/dev/null || true
+	@test -s docs/setup-guide.pdf \
+	  && echo "Wrote docs/setup-guide.pdf ($$(du -h docs/setup-guide.pdf | cut -f1))" \
+	  || { echo "PDF was not produced"; exit 1; }
 
 lint: ## Check style
 	.venv/bin/ruff check aiplat services evals infra tests scripts app

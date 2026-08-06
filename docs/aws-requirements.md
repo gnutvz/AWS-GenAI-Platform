@@ -135,6 +135,7 @@ console access — they fill in one file instead:
 
 | File | Filled by | Contains |
 |---|---|---|
+| [`docs/setup-guide.pdf`](setup-guide.pdf) | — | Step-by-step instructions for whoever deploys. Send this first. |
 | [`docs/handover.env.template`](handover.env.template) | IT, after deploying | Credentials, region, and every resource id the application needs |
 
 Saved as `.env` in the repository root, it is the whole configuration: nothing
