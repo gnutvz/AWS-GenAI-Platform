@@ -39,6 +39,22 @@ sources:
       - effective_date
       - version
 
+# The narrow slice of behaviour a tenant owns. Everything here is optional; an
+# absent block means this tenant behaves exactly like every other one.
+#
+# Not here on purpose: chunking, the guardrail and retrieval. Those stay the
+# platform's — they are what an auditor asks about, and what a mistake in is
+# expensive. There is also no `tools` list, because exactly one tool exists;
+# it goes here when a second one does.
+agent:
+  # Directory under services/agent/prompts/. Default: system
+  prompt: system
+  # Pin a version (2 or v2) so adding a prompt file is not the same act as
+  # shipping it. Omit to take the highest on disk.
+  prompt_version: 1
+  # Overrides MODEL_ID for this tenant only. Omit to take the deployment's.
+  model: global.anthropic.claude-sonnet-4-6
+
 eval:
   # Generate questions from this tenant's own corpus, including ones that
   # deliberately cannot be answered, so refusal accuracy is measurable.

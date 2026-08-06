@@ -18,9 +18,22 @@ from aiplat.knowledge import Filters, make_search_tool
 
 logger = logging.getLogger(__name__)
 
-# The prompt belongs to this workload, not to the platform — it instructs one use
-# case. The loader that versions it is shared; the text is not.
-SYSTEM_PROMPTS = Path(__file__).parent / "prompts" / "system"
+# Prompts belong to this workload, not to the platform — they instruct one use
+# case. The loader that versions them is shared; the text is not.
+#
+# A directory per prompt, selected by PROMPT_NAME, so tenants that need different
+# instructions get them without a fork. `system` is the one every tenant shared
+# before that was possible.
+PROMPTS_DIR = Path(__file__).parent / "prompts"
+
+
+def system_prompts(name: str | None = None) -> Path:
+    """Where this deployment's prompt versions live."""
+    return PROMPTS_DIR / (name or settings().prompt_name)
+
+
+# Kept for callers that want the default prompt without reading settings.
+SYSTEM_PROMPTS = PROMPTS_DIR / "system"
 
 
 def build_agent(
@@ -41,7 +54,7 @@ def build_agent(
     """
     setup_tracing()
     cfg = settings()
-    prompt = prompts.load(SYSTEM_PROMPTS, cfg.prompt_version)
+    prompt = prompts.load(system_prompts(cfg.prompt_name), cfg.prompt_version)
 
     tools = []
     if cfg.retrieval_enabled:
@@ -91,7 +104,7 @@ async def ask(prompt: str, session_id: str | None = None) -> dict:
         "tenant": cfg.tenant,
         # Which prompt produced this. Without it a client reporting a bad answer
         # is describing behaviour nobody can reproduce.
-        "prompt": prompts.load(SYSTEM_PROMPTS, cfg.prompt_version).label,
+        "prompt": prompts.load(system_prompts(cfg.prompt_name), cfg.prompt_version).label,
         "usage": {
             "input_tokens": usage.get("inputTokens"),
             "output_tokens": usage.get("outputTokens"),

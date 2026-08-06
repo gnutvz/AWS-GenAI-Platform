@@ -1,10 +1,24 @@
 """Tenant definitions — one YAML file per customer.
 
 A tenant owns *data and labels*: where its documents come from, what language
-they are in, which eval set scores it. It does not own *behaviour* — the system
-prompt, chunking, guardrail and agent logic are the platform's, identical for
-everyone. That line is what keeps this a platform with several tenants rather
-than several forks wearing a config file.
+they are in, which eval set scores it. It also owns a narrow slice of
+*behaviour* — which prompt answers its questions and which model does the
+answering.
+
+That second part was deliberately absent while there was one use case, on the
+argument that shared behaviour is what separates a platform from several forks
+wearing a config file. It stopped holding the moment more than one department
+plugged in: a legal team and an engineering team asking questions of their own
+corpora do not want the same instructions, and telling them the platform's
+prompt is the platform's is telling them to fork it.
+
+What a tenant still does *not* own: chunking, the guardrail, retrieval, and the
+agent's logic. Those are the platform's, identical for everyone, because they
+are the parts an auditor asks about and the parts a mistake in is expensive.
+
+Nothing about the mechanism is new. `infra/app.py` already deploys one Lambda
+per tenant with its own environment, so per-tenant behaviour is a value flowing
+through a path that exists — not a config service resolved at request time.
 
 Each tenant gets its own knowledge base. Isolation is then an IAM boundary
 rather than a filter someone can forget to apply: a tenant's agent role is
@@ -51,6 +65,29 @@ class Source:
 
 
 @dataclass(frozen=True)
+class AgentConfig:
+    """How this tenant's agent differs from the default one.
+
+    Two knobs, both with an immediate use. There is no `tools` field: exactly one
+    tool exists, so a list to choose from would be configuration for a decision
+    nobody can make yet — the thing this repo's own guidance calls waiting for
+    the second caller. When a second tool lands, this is where it goes.
+    """
+
+    # Directory under services/agent/prompts/. The default is the prompt every
+    # tenant shared before this existed, so an unchanged YAML behaves unchanged.
+    prompt: str = "system"
+    # None means "highest version on disk" — right for a tenant iterating on its
+    # own prompt, wrong for one that wants a fixed answer, which is why it can
+    # be pinned per tenant rather than only per deployment.
+    prompt_version: int | None = None
+    # None means the deployment's MODEL_ID. A tenant with cheap, high-volume
+    # questions and one doing hard analysis should not be forced onto one model
+    # because they share an account.
+    model: str | None = None
+
+
+@dataclass(frozen=True)
 class Tenant:
     slug: str
     display_name: str
@@ -58,6 +95,7 @@ class Tenant:
     sources: list[Source] = field(default_factory=list)
     eval_dataset: str | None = None
     generate_eval_from_corpus: bool = False
+    agent: AgentConfig = field(default_factory=AgentConfig)
 
     @property
     def embedding(self) -> tuple[str, int]:
@@ -88,6 +126,7 @@ def _parse(data: dict, origin: Path) -> Tenant:
         "language",
         "sources",
         "eval",
+        "agent",
     }
     if unknown:
         # A typo in a config key is otherwise silent — the setting simply never
@@ -114,6 +153,31 @@ def _parse(data: dict, origin: Path) -> Tenant:
         sources=sources,
         eval_dataset=eval_config.get("dataset"),
         generate_eval_from_corpus=bool(eval_config.get("generate_from_corpus", False)),
+        agent=_parse_agent(data.get("agent") or {}, origin),
+    )
+
+
+def _parse_agent(data: dict, origin: Path) -> AgentConfig:
+    unknown = data.keys() - {"prompt", "prompt_version", "model"}
+    if unknown:
+        raise ValueError(f"{origin}: unknown agent field(s): {', '.join(sorted(unknown))}")
+
+    version = data.get("prompt_version")
+    if version is not None:
+        # Accept `2` and `v2`, matching PROMPT_VERSION. A tenant file is edited by
+        # hand, so the spelling that reads naturally should not be an error.
+        try:
+            version = int(str(version).lower().lstrip("v"))
+        except ValueError:
+            raise ValueError(
+                f"{origin}: agent.prompt_version must be a number like 2 or v2, "
+                f"got {data['prompt_version']!r}"
+            ) from None
+
+    return AgentConfig(
+        prompt=data.get("prompt", "system"),
+        prompt_version=version,
+        model=data.get("model"),
     )
 
 

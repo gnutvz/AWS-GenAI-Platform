@@ -132,7 +132,19 @@ class ApiStack(Stack):
             environment={
                 "TENANT": tenant.slug,
                 "LLM_ROUTE": "bedrock",
-                "MODEL_ID": model_id,
+                # The tenant's own choice wins over the deployment default. This
+                # is the whole of per-tenant behaviour: one Lambda per tenant was
+                # already the shape, so it is a value in an environment rather
+                # than a lookup at request time.
+                "MODEL_ID": tenant.agent.model or model_id,
+                "PROMPT_NAME": tenant.agent.prompt,
+                # Empty means "highest version on disk". Written as a string
+                # because a Lambda environment has no other type.
+                "PROMPT_VERSION": (
+                    str(tenant.agent.prompt_version)
+                    if tenant.agent.prompt_version is not None
+                    else ""
+                ),
                 "KNOWLEDGE_BASE_ID": knowledge_base_id,
                 "DOCUMENTS_BUCKET": documents_bucket_name,
                 "SESSION_BUCKET": session_bucket.bucket_name,

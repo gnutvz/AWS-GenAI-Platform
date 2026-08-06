@@ -48,10 +48,29 @@ def stack_names(prefix: str, tenant: str) -> list[str]:
     ]
 
 
+def agent_settings(tenant: str) -> dict[str, str]:
+    """The tenant's own agent config, read from its YAML rather than CloudFormation.
+
+    These are not stack outputs — they are values CDK puts into the Lambda's
+    environment. Writing them here is what keeps a local run honest: without it
+    `make ask` and the eval suite would answer with the default prompt and model
+    while the deployed function used the tenant's, and a local result would say
+    nothing about the deployment it is supposed to represent.
+    """
+    from aiplat.tenants import get as get_tenant
+
+    config = get_tenant(tenant).agent
+    return {
+        "PROMPT_NAME": config.prompt,
+        "PROMPT_VERSION": str(config.prompt_version) if config.prompt_version else "",
+        **({"MODEL_ID": config.model} if config.model else {}),
+    }
+
+
 def collect(prefix: str, region: str, tenant: str) -> dict[str, str]:
     """Read outputs from the shared stacks plus one tenant's. Missing ones are skipped."""
     cfn = boto3.client("cloudformation", region_name=region)
-    values: dict[str, str] = {"TENANT": tenant}
+    values: dict[str, str] = {"TENANT": tenant, **agent_settings(tenant)}
 
     for stack_name in stack_names(prefix, tenant):
         try:

@@ -8,6 +8,43 @@ The version lives in `pyproject.toml` and is read at runtime as
 
 ## [Unreleased]
 
+## [0.8.0] — 2026-08-06
+
+### Added
+
+- **Per-tenant agent config.** `tenants/<slug>.yaml` gains an `agent:` block with
+  `prompt`, `prompt_version` and `model`. Two departments sharing one account can
+  now be answered by differently-instructed agents on different models.
+
+  Until now a tenant owned data and labels only, on the argument that shared
+  behaviour is what separates a platform from several forks wearing a config
+  file. That held with one use case and stopped holding with two: telling a legal
+  team and an engineering team that the platform's prompt is the platform's is
+  telling them to fork it.
+
+  Chunking, the guardrail and retrieval stay shared — those are the parts an
+  auditor asks about and the parts a mistake in is expensive.
+
+  **No new machinery.** Per-tenant behaviour is normally a config service resolved
+  per request, because most platforms serve every tenant from one process.
+  `infra/app.py` already deploys one Lambda per tenant, so this is a value in an
+  environment variable: no new component, nothing in the request path, and a bad
+  value fails at deploy rather than at runtime.
+
+  No `tools` field: exactly one tool exists, so a list to choose from would be
+  configuration for a decision nobody can make yet. It goes there when a second
+  tool does.
+
+- `make env TENANT=x` now writes the tenant's prompt and model into `.env`, so a
+  local `make ask` or eval run answers the way that tenant's deployment does.
+  Without it a local result would look like evidence about a deployment it did
+  not represent.
+
+### Changed
+
+- `PROMPT_NAME` selects a directory under `services/agent/prompts/`, set per
+  tenant. Defaults to `system`, so an unchanged tenant file behaves unchanged.
+
 ## [0.7.0] — 2026-08-05
 
 ### Added

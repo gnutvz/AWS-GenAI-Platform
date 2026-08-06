@@ -85,6 +85,11 @@ class Settings:
     otlp_endpoint: str | None
     service_name: str
 
+    # Which prompt this deployment serves — a directory under the workload's
+    # prompts/. Set per tenant, so two tenants sharing an account can be answered
+    # by differently-instructed agents.
+    prompt_name: str
+
     # Which prompt version this deployment serves. None means "highest on disk",
     # which is convenient locally and wrong in production: adding a file should
     # not be the same act as shipping it.
@@ -145,6 +150,7 @@ def settings() -> Settings:
         session_bucket=_optional("SESSION_BUCKET"),
         otlp_endpoint=_optional("OTEL_EXPORTER_OTLP_ENDPOINT"),
         service_name=_get("OTEL_SERVICE_NAME", "aiplat-agent"),
+        prompt_name=_get("PROMPT_NAME", "system"),
         prompt_version=_version("PROMPT_VERSION"),
         figure_processor=_choice("FIGURE_PROCESSOR", ("off", "ocr", "vlm"), "off"),
         detect_vector_figures=_flag("DETECT_VECTOR_FIGURES"),

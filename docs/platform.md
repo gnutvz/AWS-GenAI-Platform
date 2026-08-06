@@ -47,8 +47,9 @@ flowchart TD
 
 The test for whether something belongs in `aiplat/` rather than `services/`:
 **would a second workload need it too?** Model construction, retrieval, tracing,
-and configuration all pass. The agent's system prompt does not — that is specific
-to one use case, so it lives in `services/agent/agent.py`.
+configuration and the prompt *loader* all pass. The prompt *text* does not — it
+instructs one use case, so it lives in `services/agent/prompts/`, a directory per
+prompt so a tenant can pick one.
 
 | Layer | Who owns it | Changes | Example |
 |---|---|---|---|
@@ -103,6 +104,20 @@ cross-tenant retrieval is a permission nobody holds rather than a filter someone
 can forget. `tests/test_tenancy.py` asserts that against synthesized
 CloudFormation — including that no tenant's stack so much as mentions another's
 name. Onboarding a tenant is a config file, not a CDK edit.
+
+A tenant also owns a narrow slice of *behaviour* — `agent.prompt`, `agent.model`
+in its YAML. That was deliberately absent while there was one use case, on the
+argument that shared behaviour is what separates a platform from several forks
+wearing a config file. It stopped holding the moment more than one department
+plugged in: telling a legal team and an engineering team that the platform's
+prompt is the platform's is telling them to fork it. Chunking, the guardrail and
+retrieval stay shared, because those are the parts an auditor asks about.
+
+Worth noting what this did *not* need. Per-tenant behaviour is usually a config
+service resolved per request, because most platforms serve every tenant from one
+process. Here `infra/app.py` already deploys one Lambda per tenant, so it is a
+value in an environment variable — no new component, no lookup in the request
+path, and it fails at deploy time rather than at runtime.
 
 ---
 
