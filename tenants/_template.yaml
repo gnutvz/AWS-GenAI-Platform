@@ -1,0 +1,94 @@
+# Tenant intake — one copy per department, filled in by that department.
+#
+# A tenant is a boundary, not a label: each one gets its own knowledge base, its
+# own agent function, and an IAM role scoped to exactly one knowledge base ARN.
+# Two departments cannot read each other's documents because neither holds the
+# permission, not because a filter remembers to exclude them.
+#
+# HOW TO USE
+#   1. Copy to tenants/<slug>.yaml — the filename does not matter, the `tenant`
+#      field does.
+#   2. Replace every REPLACE_ME. Delete any optional block you do not need.
+#   3. Send it back, or open a PR.
+#
+# ⚠️  This repository is public. Do not commit a file naming a real customer or
+#     pointing at their documents. Keep those in a private repo or an untracked
+#     directory — the loader reads whatever is in tenants/, it does not require
+#     the file to live here.
+#
+# The annotated reference with every option is tenants/_example.yaml.
+
+# REQUIRED. Becomes part of stack names, bucket names and IAM resource ARNs.
+# Lowercase letters, digits and hyphens; 2-21 characters; starts with a letter.
+# Choose carefully: changing it later means redeploying as a new tenant and
+# re-indexing the corpus.
+tenant: REPLACE_ME              # e.g. legal, field-ops, customer-support
+
+# REQUIRED. Human-readable name. Appears in reports, not in resource names.
+display_name: "REPLACE_ME"
+
+# Language of the corpus. Drives the embedding model. Supported: en | ja | vi
+# Changing this later means re-indexing that tenant.
+language: en
+
+
+# REQUIRED. Where this tenant's documents come from. One block per directory.
+sources:
+  - # Path to a directory of documents, relative to where ingest runs.
+    path: REPLACE_ME            # e.g. ./corpora/legal/contracts
+
+    # Free-form label stamped on every document from this source. It becomes a
+    # filterable attribute, so pick something you would want to narrow by later.
+    doc_type: general           # e.g. general | technical | policy | contract
+
+    # OPTIONAL — delete this block unless the documents have revisions.
+    #
+    # Documents missing any of these keys are REFUSED at ingest rather than
+    # indexed, and every refusal is logged by name. This is the guard that stops
+    # the agent answering confidently from a superseded revision: no effective
+    # date, no index entry.
+    #
+    # Supply values in a sidecar next to each document:
+    #     contracts/msa-acme.pdf
+    #     contracts/msa-acme.pdf.meta.json
+    #       -> {"effective_date": "2026-01-01", "version": "3"}
+    #
+    # require_metadata:
+    #   - effective_date
+    #   - version
+
+
+# OPTIONAL — delete this block to behave exactly like every other tenant.
+#
+# The narrow slice of behaviour a tenant owns. Chunking, the guardrail and
+# retrieval are deliberately NOT here: those stay shared, because they are the
+# parts an auditor asks about and the parts a mistake in is expensive.
+#
+# agent:
+#   # Directory under services/agent/prompts/. A tenant needing different
+#   # instructions gets its own prompt rather than forking the platform.
+#   # Ask us to create one — it is a file, not a code change.
+#   prompt: system
+#
+#   # Pin a version so adding a prompt file is not the same act as shipping it.
+#   # Omit to always take the newest.
+#   prompt_version: 1
+#
+#   # Overrides the deployment default for this tenant only. Useful when one
+#   # department asks cheap high-volume questions and another does hard analysis.
+#   # Must be enabled in Bedrock model access first — see docs/account-intake.yaml.
+#   model: REPLACE_ME
+
+
+# OPTIONAL — delete if you do not want this tenant scored yet.
+#
+# How answer quality is measured for this tenant. Worth keeping: without it,
+# "did that change help?" is answered by opinion.
+eval:
+  # Generate questions from this tenant's own corpus — including ones that
+  # deliberately cannot be answered, so the agent's willingness to say
+  # "I don't know" is measurable rather than assumed.
+  generate_from_corpus: true
+
+  # Where the generated set is written.
+  dataset: evals/datasets/REPLACE_ME.jsonl

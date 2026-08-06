@@ -1,0 +1,104 @@
+# Account intake — fill this in and send it back.
+#
+# Everything here is a fact about your AWS account that the deployment needs and
+# cannot discover on its own. It is short on purpose: this platform provisions no
+# VPC, no cluster and no always-on infrastructure, so most of what an intake form
+# usually asks does not apply.
+#
+# WHO FILLS WHAT
+#   [IT]        someone with AWS account access
+#   [PLATFORM]  whoever runs this repo — leave blank, we fill it
+#
+# WHY each field is needed, plus the exact CLI to answer it, is in
+# docs/aws-requirements.md. Read that first if a field is unclear — it also
+# contains the answers a security review will ask for.
+#
+# Replace every REPLACE_ME. Leave a field blank only if the comment says you may.
+
+account:
+  # [IT] 12-digit account id. Used to confirm we deployed where you intended.
+  id: "REPLACE_ME"
+
+  # [IT] Region everything lives in. Must be one where Bedrock offers the models
+  # below — they are not available everywhere.
+  # Check: aws bedrock list-foundation-models --region <region>
+  region: "REPLACE_ME"          # e.g. us-west-2
+
+  # [IT] Has `cdk bootstrap` been run for this account+region? One-time, and
+  # nothing deploys without it.
+  cdk_bootstrapped: REPLACE_ME  # true | false
+
+
+bedrock:
+  # [IT] Model access must be ENABLED in the Bedrock console before anything
+  # works. This is the step that most often gets missed: without it the deploy
+  # succeeds and then the first question fails with AccessDeniedException.
+  #
+  # Bedrock console -> Model access -> enable, then confirm here.
+  model_access_enabled: REPLACE_ME   # true | false
+
+  # [IT] Which chat models are enabled. Enable more than one if you can — it
+  # makes changing our mind a config edit instead of another ticket.
+  # Check: aws bedrock list-inference-profiles --region <region>
+  chat_models_enabled:
+    - "REPLACE_ME"              # e.g. global.anthropic.claude-sonnet-5
+
+  # [IT] Required for indexing. Nothing is searchable without it.
+  embedding_model_enabled: REPLACE_ME   # true | false — amazon.titan-embed-text-v2
+
+
+quotas:
+  # [IT] This is the ceiling on how many tenants can exist: the design gives each
+  # tenant its own knowledge base, which is what makes cross-tenant retrieval a
+  # permission nobody holds rather than a filter someone can forget.
+  # Check: aws service-quotas list-service-quotas --service-code bedrock \
+  #          --region <region> --query "Quotas[?contains(QuotaName,'Knowledge base')]"
+  knowledge_bases_per_account: REPLACE_ME
+
+  # [IT] Optional. Blank is fine — we cap per-tenant concurrency ourselves, and
+  # this only tells us how much headroom that cap is drawing from.
+  lambda_concurrent_executions:
+
+  # [IT] Optional. Bedrock throttles on tokens per minute, so this predicts
+  # whether a large ingest or eval run will be rate-limited.
+  bedrock_tokens_per_minute:
+
+
+constraints:
+  # [IT] Anything that would block the deploy. Say "none" if none — an empty
+  # answer reads as "not checked".
+  #
+  # Service control policies restricting Bedrock, S3, Lambda or IAM?
+  service_control_policies: "REPLACE_ME"
+
+  # [IT] Tags this account requires on every resource. We already tag by tenant
+  # and project; anything mandatory beyond that has to be added to the CDK.
+  required_tags: "REPLACE_ME"
+
+  # [IT] Must workloads run inside a VPC? This platform does not use one. If the
+  # answer is yes, say so now — it changes the design, not just the config.
+  vpc_required: REPLACE_ME      # true | false
+
+  # [IT] Any rule about where data may be processed. This matters more than it
+  # looks: the default model id is a *global* inference profile, which routes
+  # requests across regions. If data must stay in one region, say so and we will
+  # pin a regional profile instead.
+  data_residency_rule: "REPLACE_ME"
+
+
+contact:
+  # [IT] Who to ask when a deploy fails on permissions — the most likely failure
+  # on a first run, since IAM policies here are verified for shape but have never
+  # met a live account.
+  name: "REPLACE_ME"
+  email: "REPLACE_ME"
+
+
+# ---------------------------------------------------------------------------
+# [PLATFORM] Filled in by us after the deploy. Left here so one file records
+# both what was asked for and what was built.
+deployed:
+  stacks: []
+  knowledge_base_ids: {}
+  function_urls: {}
+  deployed_at:

@@ -8,6 +8,28 @@ The version lives in `pyproject.toml` and is read at runtime as
 
 ## [Unreleased]
 
+## [0.8.1] — 2026-08-06
+
+### Added
+
+- **Two fillable intake files**, so onboarding an account is handing over a form
+  rather than a conversation.
+
+  `docs/account-intake.yaml` — the facts about an AWS account that a deployment
+  needs and cannot discover: account id, region, whether Bedrock model access is
+  actually enabled, the *Knowledge bases per account* quota (which is the ceiling
+  on how many tenants can exist), and the constraints that would change the design
+  rather than the config — an SCP, a VPC requirement, a data-residency rule.
+
+  `tenants/_template.yaml` — one per department: slug, corpus paths, optional
+  metadata gate, optional prompt and model. Underscore-prefixed so an unfilled
+  template is never deployed as a tenant named `REPLACE_ME`; a test asserts both
+  that and that a minimally-filled copy parses.
+
+  `.env` is deliberately not among them: `make env TENANT=<slug>` generates it
+  from the deployed stacks, so there is nothing to hand-copy and nothing to
+  mistype.
+
 ## [0.8.0] — 2026-08-06
 
 ### Added

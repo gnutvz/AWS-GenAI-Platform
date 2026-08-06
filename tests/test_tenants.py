@@ -123,3 +123,51 @@ class TestShippedTenants:
                     f"{tenant.slug} points at {source.path} — demo tenants must use the "
                     f"reproducible public corpus, never customer documents"
                 )
+
+
+class TestIntakeTemplate:
+    """The file a department is handed to fill in.
+
+    It is checked into `tenants/`, which is the directory the loader walks — so
+    an unfilled template must not become a tenant, and a filled one must load
+    without anyone having to know which fields the parser really wants.
+    """
+
+    TEMPLATE = Path("tenants/_template.yaml")
+
+    def test_the_unfilled_template_is_not_deployed(self):
+        """Underscore-prefixed files are skipped; forgetting that would deploy a
+        stack called REPLACE_ME."""
+        slugs = [t.slug for t in tenants.load_all(Path("tenants"))]
+
+        assert "REPLACE_ME" not in slugs
+        assert all(not s.startswith("_") for s in slugs)
+
+    def test_filling_in_the_required_fields_is_enough(self, tmp_path):
+        """Everything optional is commented out, so a minimal fill must parse."""
+        filled = (
+            self.TEMPLATE.read_text(encoding="utf-8")
+            .replace("tenant: REPLACE_ME", "tenant: legal")
+            .replace('display_name: "REPLACE_ME"', 'display_name: "Legal"')
+            .replace("path: REPLACE_ME", "path: ./corpora/legal")
+            .replace("dataset: evals/datasets/REPLACE_ME.jsonl", "dataset: x.jsonl")
+        )
+        path = tmp_path / "legal.yaml"
+        path.write_text(filled, encoding="utf-8")
+
+        tenant = tenants.load(path)
+
+        assert tenant.slug == "legal"
+        assert [s.path for s in tenant.sources] == ["./corpora/legal"]
+        # Commented-out blocks mean defaults, not missing values.
+        assert tenant.agent == tenants.AgentConfig()
+
+    def test_no_placeholder_survives_a_fill(self, tmp_path):
+        """A REPLACE_ME left in a required field should not quietly become a slug."""
+        path = tmp_path / "half.yaml"
+        path.write_text(
+            "tenant: REPLACE_ME\ndisplay_name: X\n", encoding="utf-8"
+        )
+
+        with pytest.raises(ValueError, match="slug"):
+            tenants.load(path)

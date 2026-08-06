@@ -116,6 +116,18 @@ aws service-quotas list-service-quotas --service-code bedrock --region $REGION \
 
 ---
 
+## What to send
+
+Two fillable files, both with placeholders:
+
+| File | Filled by | Contains |
+|---|---|---|
+| [`docs/account-intake.yaml`](account-intake.yaml) | IT / whoever holds AWS access | Account id, region, Bedrock model access, quotas, constraints |
+| [`tenants/_template.yaml`](../tenants/_template.yaml) | Each department | Its slug, corpus paths, metadata rules, optional prompt and model |
+
+`.env` is **not** one of them — `make env TENANT=<slug>` generates it from the
+deployed stacks, so there is nothing to hand-copy and nothing to get wrong.
+
 ## Ticket text
 
 > Please enable Bedrock model access in `<region>` for `<chat model>` and
