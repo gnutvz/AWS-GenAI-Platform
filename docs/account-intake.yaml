@@ -14,6 +14,31 @@
 # contains the answers a security review will ask for.
 #
 # Replace every REPLACE_ME. Leave a field blank only if the comment says you may.
+#
+# ─────────────────────────────────────────────────────────────────────────────
+# ⚠️  DO NOT PUT SECRETS IN THIS FILE.
+#
+# No access keys, no secret keys, no session tokens, no passwords. This file
+# lives in a public git repository and travels by email; a credential written
+# here is a credential published.
+#
+# Nothing below asks for one, and that is deliberate. `deploy_principal` wants
+# the *name* of a role or SSO permission set — an identity to grant, not a key
+# to hand over. Access is granted to a person, who then authenticates on their
+# own machine:
+#
+#     aws configure sso          # preferred
+#     aws configure              # if the account has no SSO
+#
+# If your process really does issue a long-lived key, send it through whatever
+# you normally use for secrets and say "sent separately" in the field below. It
+# gets typed into `aws configure` locally and never into a file in this repo.
+#
+# The only other secrets this platform uses are optional and are set after the
+# deploy, in `.env`, which is git-ignored: Langfuse credentials
+# (OTEL_EXPORTER_OTLP_HEADERS) and a gateway key (GATEWAY_API_KEY). Neither is
+# needed to get running, and neither belongs here.
+# ─────────────────────────────────────────────────────────────────────────────
 
 account:
   # [IT] 12-digit account id. Used to confirm we deployed where you intended.
@@ -36,7 +61,15 @@ access:
   #
   # A CDK deploy role is preferred over a long-lived user. The services that need
   # managing are listed in docs/aws-requirements.md §4; §1 item 4 has the detail.
+  #
+  # NAME the identity — do not paste a key. See the warning at the top.
   deploy_principal: "REPLACE_ME"      # e.g. role ARN, SSO permission set name
+
+  # [IT] How the granted person signs in.
+  auth_method: "REPLACE_ME"           # sso | assume-role | access-key (sent separately)
+
+  # [IT] Only if auth_method is sso. The start URL for `aws configure sso`.
+  sso_start_url:
 
   # [IT] Who has been granted it. Name the person, not the team — a deploy that
   # fails on permissions needs someone to ask.

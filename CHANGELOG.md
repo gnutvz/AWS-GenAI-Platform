@@ -8,6 +8,23 @@ The version lives in `pyproject.toml` and is read at runtime as
 
 ## [Unreleased]
 
+## [0.8.3] — 2026-08-06
+
+### Fixed
+
+- **`docs/account-intake.yaml` invited a credential leak.** It asks IT for a
+  `deploy_principal`, and nothing in the file said not to paste an access key
+  there — in a form that lives in a **public repository** and travels by email.
+
+  The file now leads with an explicit no-secrets warning, spells out that
+  `deploy_principal` wants the *name* of a role or SSO permission set rather than
+  a key, and adds `auth_method` / `sso_start_url` so the normal answer is an
+  identity to assume. A key that must be issued goes through the usual secret
+  channel and into `aws configure` locally.
+
+  The only other secrets the platform uses — Langfuse headers and a gateway key —
+  are optional, set after the deploy, and live in `.env`, which is git-ignored.
+
 ## [0.8.2] — 2026-08-06
 
 ### Fixed
