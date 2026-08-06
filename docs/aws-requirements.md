@@ -118,30 +118,28 @@ aws service-quotas list-service-quotas --service-code bedrock --region $REGION \
 
 ## What to send
 
-Two fillable files, both with placeholders:
+Which files depends on who creates the AWS resources.
 
-Which files depends on who runs the deploy.
+**If IT creates them and you only run the tool** — the usual case when you have
+no console access:
 
-**If you deploy it yourself**, you need one thing from IT — access — and
-`make env TENANT=<slug>` generates the rest from the deployed stacks:
+| File | For | Contains |
+|---|---|---|
+| [`docs/setup-guide.pdf`](setup-guide.pdf) | IT | Console walkthrough: model access, buckets, Knowledge Base, guardrail, the IAM policy, and the config block to fill in |
+| [`docs/handover.env.template`](handover.env.template) | IT | The same config block as a file, if they would rather edit than retype |
 
-| File | Filled by | Contains |
+Nothing is deployed into the account. The tool runs locally and calls AWS — no
+Lambda, no Function URL, no VPC. `make chat` and the eval runner build the agent
+in process; only `make ask` needs a deployed function, and it is not part of this
+path.
+
+**If you deploy it yourself**, you need access rather than resources, and
+`make env TENANT=<slug>` generates the config from the deployed stacks:
+
+| File | For | Contains |
 |---|---|---|
 | [`docs/account-intake.yaml`](account-intake.yaml) | IT | Account id, region, model access, quotas, constraints |
 | [`tenants/_template.yaml`](../tenants/_template.yaml) | Each department | Slug, corpus paths, metadata rules, optional prompt and model |
-
-**If IT deploys and hands the result back** — the common case when you have no
-console access — they fill in one file instead:
-
-| File | Filled by | Contains |
-|---|---|---|
-| [`docs/setup-guide.pdf`](setup-guide.pdf) | — | Step-by-step instructions for whoever deploys. Send this first. |
-| [`docs/handover.env.template`](handover.env.template) | IT, after deploying | Credentials, region, and every resource id the application needs |
-
-Saved as `.env` in the repository root, it is the whole configuration: nothing
-else to look up, and nothing to run but the application. It carries live
-credentials, so it goes back through a secrets channel — `.env` and
-`handover.env` are both git-ignored.
 
 ## Ticket text
 

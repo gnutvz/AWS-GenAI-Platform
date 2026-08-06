@@ -1,314 +1,362 @@
 <!doctype html>
 <meta charset="utf-8">
-<title>AI Platform — AWS Setup Guide</title>
+<title>AWS Setup Request — Document Q&amp;A</title>
 <style>
-  @page { size: A4; margin: 18mm 16mm; }
+  @page { size: A4; margin: 17mm 15mm; }
   * { box-sizing: border-box; }
-  body {
-    font: 10.5pt/1.55 -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-    color: #1a1a1a; margin: 0;
-  }
-  h1 { font-size: 21pt; margin: 0 0 4pt; letter-spacing: -0.3pt; }
-  .sub { color: #555; font-size: 10pt; margin-bottom: 18pt; }
-  h2 {
-    font-size: 13pt; margin: 20pt 0 7pt; padding-top: 7pt;
-    border-top: 1.5px solid #1a1a1a; page-break-after: avoid;
-  }
-  h3 { font-size: 10.5pt; margin: 13pt 0 4pt; page-break-after: avoid; }
-  p, li { margin: 0 0 6pt; }
-  ul, ol { padding-left: 18pt; margin: 0 0 8pt; }
-  code {
-    font-family: "SF Mono", Menlo, Consolas, monospace; font-size: 9pt;
-    background: #f2f2f0; padding: 1px 4px; border-radius: 3px;
-  }
-  pre {
-    font-family: "SF Mono", Menlo, Consolas, monospace; font-size: 8.7pt;
-    background: #f7f7f5; border: 1px solid #e0e0dc; border-left: 3px solid #888;
-    padding: 8pt 10pt; overflow-x: auto; line-height: 1.45;
-    page-break-inside: avoid; margin: 0 0 8pt;
-  }
-  pre code { background: none; padding: 0; }
-  table { border-collapse: collapse; width: 100%; margin: 0 0 9pt; font-size: 9.3pt; }
-  th, td { border: 1px solid #d8d8d4; padding: 5pt 7pt; text-align: left; vertical-align: top; }
-  th { background: #f2f2f0; font-weight: 600; }
-  .warn {
-    border: 1px solid #c9a227; background: #fdf8e8; border-left: 4px solid #c9a227;
-    padding: 8pt 11pt; margin: 0 0 10pt; page-break-inside: avoid;
-  }
-  .note {
-    border: 1px solid #cfd8e0; background: #f4f8fb; border-left: 4px solid #5a7d9a;
-    padding: 8pt 11pt; margin: 0 0 10pt; page-break-inside: avoid;
-  }
-  .warn p:last-child, .note p:last-child { margin-bottom: 0; }
-  .step { color: #666; font-weight: 600; font-size: 9pt; letter-spacing: 0.6pt; }
-  .page-break { page-break-before: always; }
-  footer { margin-top: 22pt; padding-top: 8pt; border-top: 1px solid #d8d8d4;
-           color: #666; font-size: 8.5pt; }
+  body { font: 10.3pt/1.52 -apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif; color:#1a1a1a; margin:0; }
+  h1 { font-size: 20pt; margin: 0 0 3pt; letter-spacing:-0.3pt; }
+  .sub { color:#555; font-size:9.8pt; margin-bottom:15pt; }
+  h2 { font-size:12.5pt; margin:18pt 0 6pt; padding-top:6pt; border-top:1.5px solid #1a1a1a; page-break-after:avoid; }
+  h3 { font-size:10.3pt; margin:12pt 0 4pt; page-break-after:avoid; }
+  p, li { margin:0 0 5pt; }
+  ul, ol { padding-left:17pt; margin:0 0 7pt; }
+  code { font-family:"SF Mono",Menlo,Consolas,monospace; font-size:8.8pt; background:#f2f2f0; padding:1px 3px; border-radius:3px; }
+  pre { font-family:"SF Mono",Menlo,Consolas,monospace; font-size:8.2pt; background:#f7f7f5;
+        border:1px solid #e0e0dc; border-left:3px solid #888; padding:7pt 9pt; overflow-x:auto;
+        line-height:1.4; page-break-inside:avoid; margin:0 0 7pt; white-space:pre-wrap; word-break:break-word; }
+  pre code { background:none; padding:0; font-size:8.2pt; }
+  table { border-collapse:collapse; width:100%; margin:0 0 8pt; font-size:9pt; }
+  th, td { border:1px solid #d8d8d4; padding:4.5pt 6pt; text-align:left; vertical-align:top; }
+  th { background:#f2f2f0; font-weight:600; }
+  td code { font-size:8.4pt; }
+  .warn { border:1px solid #c9a227; background:#fdf8e8; border-left:4px solid #c9a227; padding:7pt 10pt; margin:0 0 9pt; page-break-inside:avoid; }
+  .note { border:1px solid #cfd8e0; background:#f4f8fb; border-left:4px solid #5a7d9a; padding:7pt 10pt; margin:0 0 9pt; page-break-inside:avoid; }
+  .warn p:last-child, .note p:last-child { margin-bottom:0; }
+  .step { color:#666; font-weight:600; font-size:8.8pt; letter-spacing:0.6pt; }
+  .opt { color:#777; font-weight:400; font-size:9pt; }
+  .page-break { page-break-before:always; }
+  footer { margin-top:18pt; padding-top:7pt; border-top:1px solid #d8d8d4; color:#666; font-size:8.3pt; }
 </style>
 
-<h1>AI Platform — AWS Setup Guide</h1>
+<h1>AWS Setup Request — Document Q&amp;A</h1>
 <p class="sub">
-  What to deploy, and what to send back. Roughly 45 minutes, most of it waiting.
+  Create five AWS resources and send back one configuration file. Around 40 minutes.
 </p>
 
-<h2>What you are being asked to do</h2>
+<h2>What is being asked</h2>
 
 <p>
-  Deploy a small, serverless document-question-answering system into an AWS
-  account, then return one configuration file so the requester can use it. They
-  have no console access, so every value they need has to come back in that file.
+  A team wants to run a document question-answering tool on their own machines,
+  against documents held in your AWS account. They have no console access, so
+  everything that has to be created in AWS has to be created by you.
+</p>
+
+<p>
+  <strong>Nothing is being deployed into the account.</strong> There is no
+  application to install, no server, no container, no VPC. The tool runs on the
+  requester's laptop and calls AWS. What you create is storage and a search
+  index; what you send back is the identifiers and the credentials to reach them.
 </p>
 
 <table>
-  <tr><th>What gets created</th><th>What does <em>not</em></th></tr>
-  <tr>
-    <td>
-      A Bedrock Knowledge Base, an S3 bucket for documents, an S3 bucket for
-      conversation state, a Lambda function, a Bedrock Guardrail, and IAM roles
-      scoped to those resources.
-    </td>
-    <td>
-      No VPC. No load balancer. No database. No cluster. Nothing that runs when
-      idle — Lambda bills per invocation and S3 Vectors bills per query.
-    </td>
-  </tr>
+  <tr><th>#</th><th>Resource</th><th>Why</th><th>Required</th></tr>
+  <tr><td>1</td><td>Bedrock model access</td><td>Permission to call the model at all</td><td>Yes</td></tr>
+  <tr><td>2</td><td>S3 bucket — documents</td><td>Where the documents are stored</td><td>Yes</td></tr>
+  <tr><td>3</td><td>Bedrock Knowledge Base</td><td>Indexes and searches those documents</td><td>Yes</td></tr>
+  <tr><td>4</td><td>Bedrock Guardrail</td><td>PII masking and grounding checks</td><td>Recommended</td></tr>
+  <tr><td>5</td><td>S3 bucket — sessions</td><td>Keeps conversation history</td><td>Optional</td></tr>
+  <tr><td>6</td><td>Access for the requester</td><td>SSO or an access key</td><td>Yes</td></tr>
 </table>
 
 <div class="note">
   <p>
-    <strong>Cost while idle is close to zero.</strong> Storage only, in the order
-    of cents per month. Cost appears when questions are asked, billed as Bedrock
-    tokens. A budget alert before the first deploy is recommended.
+    <strong>Cost.</strong> Storage is cents per month. There is nothing that
+    bills while idle — no instance, no endpoint, no provisioned capacity. Charges
+    appear per question asked, as Bedrock tokens, and per document indexed. A
+    budget alert before handing over is sensible.
   </p>
 </div>
 
-<h3>You will need</h3>
-<ul>
-  <li>An AWS account, and permission to manage Bedrock, S3, Lambda and IAM in it.</li>
-  <li>A region where Bedrock is available — <code>us-west-2</code> and
-      <code>us-east-1</code> are the usual choices.</li>
-  <li>About 45 minutes, most of which is the deploy running unattended.</li>
-</ul>
+<div class="note">
+  <p>
+    <strong>If you would rather not click through the console:</strong> the
+    requester can supply a CloudFormation template that creates items 2–5 with the
+    settings already correct. Ask them for it. The rest of this document is the
+    manual route.
+  </p>
+</div>
 
 <h2><span class="step">STEP 1</span> &nbsp; Enable Bedrock model access</h2>
 
 <div class="warn">
   <p>
-    <strong>Do this first. It is the step that fails silently.</strong> If model
-    access is not enabled, everything below still succeeds — the deploy completes,
-    no error appears — and then the very first question fails with
-    <code>AccessDeniedException</code>. It looks like a broken application and is
-    not one.
+    <strong>This is the step that fails silently.</strong> If it is skipped,
+    everything else still succeeds — resources create cleanly, nothing errors —
+    and then every question fails with <code>AccessDeniedException</code>. It
+    looks like a broken application and is not one.
   </p>
 </div>
 
-<p>In the AWS console, in the region you have chosen:</p>
+<p>Console → <strong>Amazon Bedrock</strong> → <strong>Model access</strong>, in the region you have chosen:</p>
 <ol>
-  <li>Open <strong>Amazon Bedrock</strong> → <strong>Model access</strong>.</li>
-  <li>Choose <strong>Modify model access</strong>.</li>
-  <li>Enable a Claude chat model. If several are available, enable more than one —
-      it makes changing the choice later a config edit rather than another ticket.</li>
+  <li>Enable a <strong>Claude</strong> chat model. Enable more than one if
+      available — it turns a later change of mind into a config edit rather than
+      another ticket.</li>
   <li>Enable <strong>Titan Text Embeddings V2</strong>
       (<code>amazon.titan-embed-text-v2</code>). Nothing becomes searchable
       without it.</li>
-  <li>Submit, and wait until status reads <em>Access granted</em>.</li>
+  <li>Wait for status <em>Access granted</em>.</li>
 </ol>
 
-<p>Confirm from the command line:</p>
-<pre><code>aws bedrock list-inference-profiles --region us-west-2 \
+<p>Confirm — both commands must return at least one line:</p>
+<pre><code>aws bedrock list-inference-profiles --region &lt;region&gt; \
   --query "inferenceProfileSummaries[?contains(inferenceProfileId,'anthropic')].inferenceProfileId"
 
-aws bedrock list-foundation-models --region us-west-2 \
+aws bedrock list-foundation-models --region &lt;region&gt; \
   --query "modelSummaries[?contains(modelId,'titan-embed-text-v2')].modelId"</code></pre>
 
-<p>Both commands must return at least one entry. If either is empty, stop here.</p>
+<h2><span class="step">STEP 2</span> &nbsp; S3 bucket for documents</h2>
 
-<h2><span class="step">STEP 2</span> &nbsp; Install the tools</h2>
+<p>Create a bucket in the same region. Defaults are fine — block public access on, encryption on.</p>
 
 <table>
-  <tr><th>Tool</th><th>Why</th><th>Install</th></tr>
-  <tr><td>Python 3.11+</td><td>Runs the deploy scripts</td><td><code>python.org</code></td></tr>
-  <tr><td>uv</td><td>Package manager used by the Makefile</td>
-      <td><code>curl -LsSf https://astral.sh/uv/install.sh | sh</code></td></tr>
-  <tr><td>Node 22+</td><td>Runs the AWS CDK CLI</td><td><code>nodejs.org</code></td></tr>
-  <tr><td>AWS CLI v2</td><td>Credentials and reading outputs</td><td><code>aws.amazon.com/cli</code></td></tr>
-  <tr><td>Docker</td><td>Packages the Lambda</td><td><code>docker.com</code> — must be <em>running</em></td></tr>
+  <tr><th>Setting</th><th>Value</th></tr>
+  <tr><td>Region</td><td>Same as everything else</td></tr>
+  <tr><td>Versioning</td><td><strong>Enabled</strong> — a bad load can then be undone</td></tr>
+  <tr><td>Public access</td><td>Blocked</td></tr>
 </table>
-
-<p>Then get the code and install it:</p>
-<pre><code>git clone &lt;repository-url&gt;
-cd AWS-GenAI-Platform
-make install</code></pre>
-
-<h2><span class="step">STEP 3</span> &nbsp; Point the AWS CLI at the account</h2>
-
-<pre><code>aws configure sso        # if the account uses SSO
-aws configure            # otherwise
-
-aws sts get-caller-identity     # confirm: prints the account id
-export AWS_REGION=us-west-2     # same region as Step 1</code></pre>
-
-<h2 class="page-break"><span class="step">STEP 4</span> &nbsp; Deploy</h2>
-
-<p>
-  A tenant is one isolated set of resources — its own knowledge base, its own
-  function, its own IAM role. The repository ships with an example tenant called
-  <code>acme</code>; the requester will tell you which slug they want. Substitute
-  it for <code>acme</code> throughout.
-</p>
-
-<pre><code>cd infra &amp;&amp; npx cdk bootstrap     # once per account and region
-cd .. &amp;&amp; make deploy</code></pre>
-
-<p>
-  This takes 10–20 minutes, mostly building the Knowledge Base. It is safe to
-  leave unattended. It is also safe to re-run: CDK applies only differences.
-</p>
-
-<div class="note">
-  <p>
-    <strong>If it fails on permissions</strong> — the most likely failure — the
-    error names the missing action. Grant it and re-run <code>make deploy</code>;
-    nothing needs undoing first.
-  </p>
-</div>
-
-<h2><span class="step">STEP 5</span> &nbsp; Generate the configuration file</h2>
-
-<p>
-  There is a command for this. It reads every value back out of the deployed
-  stacks and writes them to a file called <code>.env</code>, so nothing has to be
-  copied by hand:
-</p>
-
-<pre><code>make env TENANT=acme
-cat .env</code></pre>
-
-<p>You should see roughly this, with real values:</p>
-
-<pre><code>TENANT=acme
-AWS_REGION=us-west-2
-KNOWLEDGE_BASE_ID=ABCD1234EF
-DOCUMENTS_BUCKET=aiplat-knowledge-acme-documents-...
-SESSION_BUCKET=aiplat-api-acme-sessions-...
-GUARDRAIL_ID=abcd1234efgh
-GUARDRAIL_VERSION=1
-AGENT_FUNCTION_URL=https://....lambda-url.us-west-2.on.aws/</code></pre>
 
 <div class="warn">
   <p>
-    <strong>If a line is missing or blank</strong>, that stack did not deploy.
-    Do not send a partial file — go back to Step 4 and check for errors. A missing
-    <code>GUARDRAIL_ID</code> in particular means the system would run with no PII
-    masking and no grounding check.
+    <strong>Documents must live under a <code>documents/</code> prefix</strong>
+    inside the bucket. The Knowledge Base in Step 3 is configured to look only
+    there. Anything uploaded elsewhere in the bucket is silently never indexed.
   </p>
 </div>
 
-<h2><span class="step">STEP 6</span> &nbsp; Add credentials</h2>
+<h2 class="page-break"><span class="step">STEP 3</span> &nbsp; Bedrock Knowledge Base</h2>
 
 <p>
-  The generated file describes <em>what</em> to talk to. The recipient also needs
-  permission to talk to it. Choose one:
+  Console → <strong>Amazon Bedrock</strong> → <strong>Knowledge Bases</strong> →
+  <strong>Create</strong>. This is the longest step and the one where a wrong
+  setting is expensive: several of these cannot be changed afterwards without
+  re-indexing every document.
 </p>
 
-<h3>Option A — SSO or an assumable role (preferred)</h3>
+<table>
+  <tr><th>Setting</th><th>Value</th><th>Note</th></tr>
+  <tr><td>Data source type</td><td><strong>Amazon S3</strong></td><td></td></tr>
+  <tr><td>S3 URI</td><td><code>s3://&lt;documents-bucket&gt;/documents/</code></td><td>Include the prefix</td></tr>
+  <tr><td>Embeddings model</td><td><code>amazon.titan-embed-text-v2</code></td><td>Cannot change later</td></tr>
+  <tr><td>Vector dimensions</td><td><code>1024</code></td><td>Cannot change later</td></tr>
+  <tr><td>Vector store</td><td><strong>Amazon S3 Vectors</strong></td><td>Cheapest at rest; console can create it for you</td></tr>
+  <tr><td>Distance metric</td><td><code>cosine</code></td><td></td></tr>
+  <tr><td>Chunking strategy</td><td><strong>Hierarchical</strong></td><td>Not fixed-size — see below</td></tr>
+  <tr><td>Parent chunk size</td><td><code>1500</code> tokens</td><td></td></tr>
+  <tr><td>Child chunk size</td><td><code>300</code> tokens</td><td></td></tr>
+  <tr><td>Overlap</td><td><code>60</code> tokens</td><td></td></tr>
+</table>
+
+<div class="note">
+  <p>
+    <strong>Why hierarchical matters.</strong> Small chunks are matched so the
+    search is precise; the larger passage around the match is what gets read. Set
+    to fixed-size instead and answers start losing the context around the thing
+    they found — a table row returned without its header, for example. It costs a
+    little more storage and is worth it.
+  </p>
+</div>
+
 <p>
-  Nothing secret travels. Grant the recipient access, send them the SSO start URL
-  separately, and add nothing to the file. They will run
+  After creating it, note the <strong>Knowledge Base ID</strong> — a short string
+  like <code>ABCD1234EF</code>. Leave the data source empty for now; the requester
+  loads the documents themselves.
+</p>
+
+<h2><span class="step">STEP 4</span> &nbsp; Bedrock Guardrail <span class="opt">— recommended</span></h2>
+
+<p>
+  Console → <strong>Bedrock</strong> → <strong>Guardrails</strong> →
+  <strong>Create</strong>. Skipping this is a valid decision, and it means answers
+  are returned with no PII masking and no check that they are supported by the
+  documents.
+</p>
+
+<table>
+  <tr><th>Section</th><th>Setting</th></tr>
+  <tr><td>Content filters</td>
+      <td>Hate, Insults, Sexual, Violence, Misconduct — strength <strong>High</strong> on input and output</td></tr>
+  <tr><td>Prompt attacks</td>
+      <td>Strength <strong>High</strong> on input. Output must be left <em>None</em> — Bedrock rejects a strength there</td></tr>
+  <tr><td>Sensitive information</td>
+      <td>Email, Phone, Name, Address, Credit/Debit card — action <strong>Mask</strong>, not Block</td></tr>
+  <tr><td>Contextual grounding</td>
+      <td>Grounding <code>0.75</code>, Relevance <code>0.5</code></td></tr>
+</table>
+
+<p>
+  <strong>Mask rather than Block</strong> is deliberate: an answer with a redacted
+  phone number is still useful, a blocked answer is not.
+</p>
+
+<p>
+  Publish a version after creating it. Note the <strong>Guardrail ID</strong> and
+  the <strong>version number</strong> — both are needed.
+</p>
+
+<h2><span class="step">STEP 5</span> &nbsp; S3 bucket for sessions <span class="opt">— optional</span></h2>
+
+<p>
+  A second bucket, same region, defaults fine. It holds conversation history so a
+  follow-up question remembers the previous one. Without it the tool still works,
+  but every question starts a fresh conversation.
+</p>
+<p>
+  A lifecycle rule expiring objects after 30 days is sensible — this is transient
+  state, not records.
+</p>
+
+<h2 class="page-break"><span class="step">STEP 6</span> &nbsp; Access for the requester</h2>
+
+<p>Choose whichever fits your policy.</p>
+
+<h3>Option A — SSO or an assumable role <span class="opt">(preferred)</span></h3>
+<p>
+  Grant the requester's identity the policy below and send them the SSO start
+  URL. Nothing secret travels in the config file. They will run
   <code>aws configure sso</code> themselves.
 </p>
 
 <h3>Option B — an access key</h3>
 <p>
-  Create a principal that can call Bedrock, read the documents bucket, and
-  read/write the session bucket. <strong>It does not need permission to deploy
-  anything.</strong> Append two lines to <code>.env</code>:
+  Create an IAM user with the policy below, generate an access key, and include
+  it in the config file. <strong>The file then contains a live credential</strong>
+  — send it through a password manager or vault, not email or chat.
 </p>
-<pre><code>AWS_ACCESS_KEY_ID=...
-AWS_SECRET_ACCESS_KEY=...</code></pre>
 
-<h2><span class="step">STEP 7</span> &nbsp; Check it works before sending</h2>
+<h3>The policy — either way</h3>
+<p>
+  This grants only what the tool does: call the model, search the knowledge base,
+  load documents. <strong>It cannot create or delete anything.</strong> Replace
+  the four placeholders.
+</p>
 
-<p>Load a few documents and ask a question about them:</p>
-
-<pre><code>make image-ingest
-
-docker run --rm -v ~/.aws:/root/.aws:ro -v "$PWD/sample-docs:/data:ro" \
-  -e AWS_REGION -e DOCUMENTS_BUCKET -e KNOWLEDGE_BASE_ID \
-  aiplat-ingest /data --wait
-
-make ask Q="What do these documents cover?"</code></pre>
+<pre><code>{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "CallTheModel",
+      "Effect": "Allow",
+      "Action": ["bedrock:InvokeModel", "bedrock:InvokeModelWithResponseStream"],
+      "Resource": [
+        "arn:aws:bedrock:REGION::foundation-model/*",
+        "arn:aws:bedrock:REGION:ACCOUNT_ID:inference-profile/*",
+        "arn:aws:bedrock:*:ACCOUNT_ID:inference-profile/*"
+      ]
+    },
+    {
+      "Sid": "SearchAndIndex",
+      "Effect": "Allow",
+      "Action": [
+        "bedrock:Retrieve",
+        "bedrock:ListDataSources",
+        "bedrock:StartIngestionJob",
+        "bedrock:GetIngestionJob"
+      ],
+      "Resource": "arn:aws:bedrock:REGION:ACCOUNT_ID:knowledge-base/KB_ID"
+    },
+    {
+      "Sid": "ApplyTheGuardrail",
+      "Effect": "Allow",
+      "Action": "bedrock:ApplyGuardrail",
+      "Resource": "arn:aws:bedrock:REGION:ACCOUNT_ID:guardrail/GUARDRAIL_ID"
+    },
+    {
+      "Sid": "LoadDocuments",
+      "Effect": "Allow",
+      "Action": ["s3:PutObject", "s3:GetObject", "s3:ListBucket"],
+      "Resource": [
+        "arn:aws:s3:::DOCUMENTS_BUCKET",
+        "arn:aws:s3:::DOCUMENTS_BUCKET/*"
+      ]
+    },
+    {
+      "Sid": "ConversationState",
+      "Effect": "Allow",
+      "Action": ["s3:GetObject", "s3:PutObject", "s3:DeleteObject", "s3:ListBucket"],
+      "Resource": [
+        "arn:aws:s3:::SESSION_BUCKET",
+        "arn:aws:s3:::SESSION_BUCKET/*"
+      ]
+    }
+  ]
+}</code></pre>
 
 <p>
-  A grounded answer with <code>[1]</code>-style citations means the whole chain
-  works. An honest <em>"I don't know"</em> for something the documents do not
-  cover is also a correct result — the system is built to refuse rather than
-  guess, and seeing it do so is a good sign.
+  The two <code>inference-profile</code> lines are not a duplicate. Claude is
+  reached through cross-region profiles, so a call made in one region may be
+  served from another. <strong>If your policy requires data to stay in one
+  region, say so when you send this back</strong> — the requester will pin a
+  single-region profile instead, and that is a change they must make.
 </p>
 
-<h2><span class="step">STEP 8</span> &nbsp; Send the file back</h2>
+<h2 class="page-break"><span class="step">STEP 7</span> &nbsp; Fill in and send</h2>
+
+<p>Copy this, fill in the values, send it back. Delete whichever credential block does not apply.</p>
+
+<pre><code># --- Region ---------------------------------------------------------------
+AWS_REGION=
+
+# --- Credentials: Option A (SSO) -------------------------------------------
+# Leave the keys below out entirely. Send the start URL:
+#   SSO start URL:
+#   Account id:
+#   Role / permission set name:
+
+# --- Credentials: Option B (access key) ------------------------------------
+AWS_ACCESS_KEY_ID=
+AWS_SECRET_ACCESS_KEY=
+
+# --- Resources -------------------------------------------------------------
+# Step 3 — the short id, e.g. ABCD1234EF
+KNOWLEDGE_BASE_ID=
+
+# Step 2 — bucket name only, no s3:// and no prefix
+DOCUMENTS_BUCKET=
+
+# Step 5 — leave blank if it was skipped
+SESSION_BUCKET=
+
+# Step 4 — leave both blank if it was skipped
+GUARDRAIL_ID=
+GUARDRAIL_VERSION=
+
+# Step 1 — the chat model that was enabled, e.g.
+#   global.anthropic.claude-sonnet-4-6
+MODEL_ID=</code></pre>
 
 <div class="warn">
   <p>
-    <strong>If you chose Option B, this file now contains live credentials.</strong>
-    Send it through whatever your organisation uses for secrets — a password
-    manager, a vault, an encrypted share. Not email, not chat.
+    <strong>Leave a value blank rather than guessing.</strong> A blank means "not
+    provided" and the tool says so clearly. A wrong identifier fails much later,
+    with an error that points at the wrong thing.
   </p>
 </div>
 
-<p>
-  The recipient saves it as <code>.env</code> in the repository root. That is the
-  entire handover: they have no further setup to do.
-</p>
+<h2>Anything else worth telling them</h2>
 
-<h2>If something goes wrong</h2>
+<ul>
+  <li>Whether data-residency rules apply (see the note in Step 6).</li>
+  <li>The <em>Knowledge bases per account</em> quota, if you know it — it is the
+      ceiling on how many separate document sets they can have.</li>
+  <li>Who to contact if a permission turns out to be missing. This is the most
+      likely thing to need a second pass.</li>
+</ul>
+
+<h2>If something looks wrong</h2>
 
 <table>
   <tr><th>Symptom</th><th>Cause</th><th>Fix</th></tr>
-  <tr>
-    <td><code>AccessDeniedException</code> when asking a question</td>
-    <td>Model access not enabled, or enabled in a different region</td>
-    <td>Step 1, in the region from Step 3</td>
-  </tr>
-  <tr>
-    <td><code>make deploy</code> fails naming an IAM action</td>
-    <td>The deploying principal lacks that permission</td>
-    <td>Grant it, re-run — nothing needs undoing</td>
-  </tr>
-  <tr>
-    <td>Docker or bundling error during deploy</td>
-    <td>Docker is not running</td>
-    <td>Start Docker, re-run</td>
-  </tr>
-  <tr>
-    <td><code>make env</code> writes an empty or partial file</td>
-    <td>Some stacks did not deploy</td>
-    <td>Re-run <code>make deploy</code> and read the errors</td>
-  </tr>
-  <tr>
-    <td>Questions return "I don't know" for everything</td>
-    <td>No documents indexed yet</td>
-    <td>Run the ingest step; wait for it to finish</td>
-  </tr>
-  <tr>
-    <td>Deploy succeeds, questions fail with a throttling error</td>
-    <td>Bedrock quota too low for this account</td>
-    <td>Request a quota increase for the chosen model</td>
-  </tr>
+  <tr><td>Knowledge Base will not create</td><td>Embedding model not enabled</td><td>Step 1, same region</td></tr>
+  <tr><td>Knowledge Base creates but indexes nothing</td><td>Documents not under <code>documents/</code></td><td>Move them, re-sync</td></tr>
+  <tr><td>Requester reports <code>AccessDeniedException</code></td><td>Model access off, or off in a different region</td><td>Step 1</td></tr>
+  <tr><td>Requester reports a throttling error</td><td>Bedrock quota too low</td><td>Request an increase for that model</td></tr>
+  <tr><td>Guardrail rejects an output strength</td><td>Prompt attacks has no output setting</td><td>Leave output as <em>None</em></td></tr>
 </table>
 
-<h2>Removing it again</h2>
-
-<pre><code>make destroy</code></pre>
-
-<p>
-  The documents bucket and the knowledge base are deliberately retained, so an
-  accidental teardown cannot delete an indexed corpus. Delete those two by hand
-  when the removal is intended.
-</p>
-
 <footer>
-  Full technical detail, including the exact IAM permissions and the answers a
-  security review will ask for, is in <code>docs/aws-requirements.md</code> in the
-  repository.
+  Sent alongside this: nothing else is required. The requester installs and runs
+  the tool themselves and does not need access to create, modify or delete any
+  AWS resource.
 </footer>

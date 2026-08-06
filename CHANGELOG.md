@@ -8,6 +8,28 @@ The version lives in `pyproject.toml` and is read at runtime as
 
 ## [Unreleased]
 
+## [0.9.2] — 2026-08-06
+
+### Changed
+
+- **The setup guide was written for the wrong reader.** It walked whoever
+  received it through cloning the repository and running `make deploy` — which
+  assumes they are the operator. In the case it was built for they are not: IT
+  creates the AWS resources, hands back one file, and the requester runs
+  everything locally with no console access and nothing deployed.
+
+  Rewritten as a console walkthrough: model access, two buckets, the Knowledge
+  Base, the guardrail, an IAM policy that can call and read but not create, and
+  the config block to fill in. No repository, no CDK, no deploy.
+
+  The Knowledge Base settings are given exactly, because several of them —
+  embedding model, dimensions, hierarchical chunking at 1500/300 with 60 overlap
+  — cannot be changed afterwards without re-indexing every document.
+
+- `docs/handover.env.template` now matches that flow. It previously listed
+  CloudFormation outputs that only exist if someone ran the deploy, including an
+  `AGENT_FUNCTION_URL` this path never produces.
+
 ## [0.9.1] — 2026-08-06
 
 ### Added
