@@ -8,6 +8,24 @@ The version lives in `pyproject.toml` and is read at runtime as
 
 ## [Unreleased]
 
+## [0.9.4] — 2026-08-07
+
+### Added
+
+- `scripts/preflight.py` / `make preflight` — checks a live account against what
+  the platform actually needs, before anything is deployed or ingested.
+
+  Read-only apart from one one-token model call, because listing a model is not
+  the same as being able to invoke it, and that gap is the single most common
+  first-run failure: the deploy succeeds and the first question returns
+  AccessDeniedException.
+
+  Each check reports the console page that fixes it rather than the raw API
+  error, and distinguishes the cases that look alike from the outside — a
+  knowledge base that is denied, one that is empty, and one that has no data
+  source attached all present as "retrieval does not work". Exits non-zero only
+  on required failures, so it can gate a pipeline.
+
 ## [0.9.3] — 2026-08-06
 
 ### Changed

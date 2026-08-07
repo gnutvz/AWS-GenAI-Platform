@@ -1,4 +1,4 @@
-.PHONY: help install deploy destroy ingest eval trace-local trace-stop lint test guide
+.PHONY: help install preflight deploy destroy ingest eval trace-local trace-stop lint test guide
 
 PYTHON := .venv/bin/python
 # Headless Chrome renders docs/setup-guide.html to PDF. Override on Linux:
@@ -15,6 +15,9 @@ install: ## Create the virtualenv and install the platform
 
 env: ## Point .env at a tenant: make env TENANT=acme
 	$(PYTHON) scripts/write_env.py --tenant $(TENANT)
+
+preflight: ## Check a live account against what the platform needs (read-only)
+	$(PYTHON) scripts/preflight.py $(if $(PROFILE),--profile $(PROFILE),)
 
 deploy: ## Deploy every tenant (and shared stacks)
 	$(CDK) deploy --all --require-approval never
